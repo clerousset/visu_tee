@@ -25,6 +25,20 @@
     return (v / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + ' Md€';
   }
 
+  function lowerFirst(str) { return str ? str.charAt(0).toLowerCase() + str.slice(1) : str; }
+
+  // article + libellé corrects pour "pour {sector}" en français (les 6
+  // secteurs sont fixes, donc autant écrire l'accord une bonne fois)
+  const SECTOR_PHRASE = {
+    S1: 'l’économie totale',
+    S11: 'les sociétés non financières',
+    S12: 'les sociétés financières',
+    S13: 'les administrations publiques',
+    S14: 'les ménages',
+    S15: 'les institutions sans but lucratif au service des ménages',
+  };
+  function sectorPhrase(sector) { return SECTOR_PHRASE[sector] || lowerFirst(G.sectorLabel(sector)); }
+
   function rootStoOptions(sector) {
     const bySto = (D.values[sector] || {}).B || {};
     return Object.keys(bySto).sort();
@@ -65,20 +79,24 @@
   }
 
   // ---------- Carte ----------
-  function Card({ sector, entry, sto, year, value, effectiveSign }) {
+  function Card({ sector, entry, sto, year, value, effectiveSign, hasFormulas }) {
     const signClass = value === null ? '' : value >= 0 ? 'pos' : 'neg';
+    const entryText = lowerFirst(G.entryLabel(entry));
+
+    const sentence = h('p', { className: 'card-sentence', key: 'sentence' }, [
+      'Les ',
+      h('strong', { className: 'card-value ' + signClass, key: 'val' }, fmtMd(value)),
+      ' de ' + entryText + ' de ',
+      String(year),
+      ' ',
+      h(SeriesHover, { key: 'series', sector, entry, sto, year }),
+      ' pour ' + sectorPhrase(sector) + (hasFormulas ? ' peuvent se décomposer en :' : '.'),
+    ]);
+
     const children = [
-      h('div', { className: 'card-top', key: 'top' }, [
-        h('span', { className: 'card-sto', key: 'sto' }, sto),
-        h('span', { className: 'card-entry-badge entry-' + entry, key: 'entry' }, G.entryLabel(entry)),
-      ]),
-      h('div', { className: 'card-sector', key: 'sec' }, G.sectorLabel(sector)),
-      h('div', { className: 'card-value ' + signClass, key: 'val' }, fmtMd(value)),
-      h('div', { className: 'card-caption', key: 'cap' }, G.stoLabel(sto)),
-      h('div', { className: 'card-year', key: 'year' }, [
-        'Année ' + year,
-        h(SeriesHover, { key: 'series', sector, entry, sto, year }),
-      ]),
+      h('span', { className: 'card-sto', key: 'sto' }, sto),
+      sentence,
+      h('div', { className: 'card-meaning', key: 'meaning' }, G.stoLabel(sto)),
     ];
     if (effectiveSign !== undefined) {
       children.push(
@@ -142,7 +160,7 @@
       .map(id => h(FormulaGroup, { key: id, sector, entry, sto, year, formulaId: id, depth: depth || 0 }));
 
     return h('div', { className: 'card-node' }, [
-      h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign }),
+      h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign, hasFormulas: formulas.length > 0 }),
       pills,
       groups.length ? h('div', { className: 'groups-stack', key: 'groups' }, groups) : null,
     ]);
