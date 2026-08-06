@@ -136,8 +136,7 @@ main {
   align-items: flex-start;
 }
 .stacked-bar-svg { flex-shrink: 0; }
-.stack-seg.pos { fill: var(--pos); }
-.stack-seg.neg { fill: var(--neg); }
+.stack-seg { stroke: var(--panel); stroke-width: 0.5; }
 .stack-zero {
   stroke: var(--border);
   stroke-width: 1;
@@ -162,8 +161,6 @@ main {
   border-radius: 2px;
   flex-shrink: 0;
 }
-.legend-swatch.pos { background: var(--pos); }
-.legend-swatch.neg { background: var(--neg); }
 .legend-label {
   color: var(--text-dim);
   overflow: hidden;
@@ -177,9 +174,8 @@ main {
   font-weight: 600;
   white-space: nowrap;
   padding-left: 6px;
+  color: var(--text);
 }
-.legend-value.pos { color: var(--pos); }
-.legend-value.neg { color: var(--neg); }
 
 .stacked-bar-total {
   margin-top: 12px;

@@ -27,6 +27,14 @@
 
   function lowerFirst(str) { return str ? str.charAt(0).toLowerCase() + str.slice(1) : str; }
 
+  // palette catégorielle pour distinguer chaque contribution de l'histogramme
+  // empilé (une couleur par membre, indépendante du signe)
+  const STACK_PALETTE = [
+    '#5b8def', '#ff8a5c', '#7ee0c3', '#e6c94f', '#c98bf0',
+    '#ff6b9d', '#4fd18b', '#f0a04b', '#6bc9ff', '#d17ee0',
+  ];
+  function colorForIndex(i) { return STACK_PALETTE[i % STACK_PALETTE.length]; }
+
   // suffixe le code STO par sa position (_C / _D) quand elle est ambiguë :
   // un même poste (ex. D7) peut apparaître à la fois en ressource et en
   // emploi dans une même identité, d'où "D7_C" vs "D7_D"
@@ -189,14 +197,15 @@
     const rootValue = G.getValue(sector, 'B', sto, year);
     const f = D.formulas[formulaId];
 
-    const rects = bar.segments.map(s =>
+    const rects = bar.segments.map((s, i) =>
       h('rect', {
         key: s.sector + '|' + s.entry + '|' + s.sto,
         x: 0,
         width: bar.width,
         y: Math.min(s.y0, s.y1),
         height: Math.max(1, Math.abs(s.y1 - s.y0)),
-        className: 'stack-seg ' + (s.positive ? 'pos' : 'neg'),
+        className: 'stack-seg',
+        style: { fill: colorForIndex(i) },
       }, [
         h('title', { key: 'tt' },
           stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '') + ' : ' + fmtMd(s.contribution)
@@ -204,12 +213,12 @@
       ])
     );
 
-    const legend = bar.segments.map(s =>
+    const legend = bar.segments.map((s, i) =>
       h('div', { className: 'legend-item', key: s.sector + '|' + s.entry + '|' + s.sto }, [
-        h('span', { className: 'legend-swatch ' + (s.positive ? 'pos' : 'neg'), key: 'sw' }),
+        h('span', { className: 'legend-swatch', key: 'sw', style: { background: colorForIndex(i) } }),
         h('span', { className: 'legend-label', key: 'lb' },
           stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '')),
-        h('span', { className: 'legend-value ' + (s.positive ? 'pos' : 'neg'), key: 'val' }, fmtMd(s.contribution)),
+        h('span', { className: 'legend-value', key: 'val' }, fmtMd(s.contribution)),
       ])
     );
 
