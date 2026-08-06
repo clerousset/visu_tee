@@ -89,7 +89,7 @@
       ' ',
       h(SeriesHover, { key: 'series', sector, entry, sto, year }),
       ' de ' + meaningText + ' de ' + year,
-      ' pour ' + sectorPhrase(sector) + (hasFormulas ? ' peuvent se décomposer en :' : '.'),
+      ' pour ' + sectorPhrase(sector) + (hasFormulas ? ' peuvent se décomposer :' : '.'),
     ]);
 
     const children = [
@@ -129,6 +129,7 @@
             year,
             effectiveSign: m.effectiveSign,
             depth: depth + 1,
+            excludeFormulaId: formulaId,
           })
         )
       ),
@@ -136,10 +137,12 @@
   }
 
   // ---------- Nœud carte + boutons de dépliage (récursif) ----------
-  function CardNode({ sector, entry, sto, year, effectiveSign, depth }) {
+  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId }) {
     const [expanded, setExpanded] = React.useState({});
     const value = G.getValue(sector, entry, sto, year);
-    const formulas = G.getFormulasFor(sector, entry, sto);
+    // on ne repropose pas la formule qui a généré cette carte (évite un
+    // dépliage trivial "vers le parent" juste après avoir déplié celui-ci)
+    const formulas = G.getFormulasFor(sector, entry, sto).filter(f => f.id !== excludeFormulaId);
 
     function toggle(id) {
       setExpanded(prev => ({ ...prev, [id]: !prev[id] }));

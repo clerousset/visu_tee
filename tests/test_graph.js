@@ -52,6 +52,18 @@ if (defB9) {
     `les membres "B" (soldes) apparaissent avant les autres dans l'expansion (ordre observé: ${entries.join(',')})`
   );
   assert(exp.others[0].entry === 'B', `le premier membre déplié est un solde (trouvé entry=${exp.others[0].entry})`);
+
+  // un enfant de cette formule doit lui-même lister la formule parente
+  // parmi les siennes (c'est ce que l'UI doit filtrer via excludeFormulaId,
+  // pour ne pas proposer de replier trivialement "vers le parent")
+  const child = exp.others[0];
+  const childFormulas = G.getFormulasFor(child.sector, child.entry, child.sto);
+  assert(
+    childFormulas.some(f => f.id === defB9.id),
+    `l'enfant ${child.sto} référence bien la formule parente (à filtrer côté UI)`
+  );
+  const filtered = childFormulas.filter(f => f.id !== defB9.id);
+  assert(filtered.length === childFormulas.length - 1, "le filtre par excludeFormulaId retire exactement la formule parente");
 }
 
 // 4) formule de ventilation par secteur : la somme des sous-secteurs ≈ le total
