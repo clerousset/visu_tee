@@ -63,5 +63,21 @@ if (val1980 !== null && defB9) {
   console.log(`Info 1980 : ${missing} terme(s) manquant(s) sur ${exp.others.length} pour la définition de B9`);
 }
 
+// 6) série annuelle + géométrie du sparkline (pour l'icône au survol)
+const s = G.series('S1', 'B', 'B9');
+assert(s.length > 40, `série B9/S1 a un historique long (${s.length} points)`);
+assert(s.every((p, i) => i === 0 || p.year > s[i - 1].year), 'série triée par année croissante');
+
+const geom = Lib.sparklineGeometry(s, { width: 240, height: 84, pad: 10 });
+assert(!!geom, 'sparklineGeometry retourne une géométrie pour une série non vide');
+if (geom) {
+  assert(geom.points.split(' ').length === s.length, 'un point de coordonnées par observation');
+  const last = s[s.length - 1];
+  const x = geom.xFor(last.year), y = geom.yFor(last.value);
+  assert(x >= 0 && x <= geom.width, `xFor(dernière année) dans les bornes du graphique (x=${x.toFixed(1)})`);
+  assert(y >= 0 && y <= geom.height, `yFor(dernière valeur) dans les bornes du graphique (y=${y.toFixed(1)})`);
+}
+assert(Lib.sparklineGeometry([]) === null, 'sparklineGeometry(série vide) renvoie null');
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

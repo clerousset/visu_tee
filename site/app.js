@@ -30,6 +30,40 @@
     return Object.keys(bySto).sort();
   }
 
+  // ---------- Icône + mini-graphique au survol (série annuelle complète) ----------
+  function SeriesHover({ sector, entry, sto, year }) {
+    const s = G.series(sector, entry, sto);
+    if (s.length < 2) return null; // pas assez de points pour un graphique utile
+    const geom = TeeGraphLib.sparklineGeometry(s, { width: 240, height: 84, pad: 10 });
+    const current = s.find(p => p.year === year);
+    const dot = current ? h('circle', {
+      key: 'dot', cx: geom.xFor(current.year), cy: geom.yFor(current.value), r: 3, className: 'spark-dot',
+    }) : null;
+    const zero = geom.zeroY !== null ? h('line', {
+      key: 'zero', x1: 0, x2: geom.width, y1: geom.zeroY, y2: geom.zeroY, className: 'spark-zero',
+    }) : null;
+
+    return h('span', { className: 'series-hover' }, [
+      h('svg', { key: 'icon', className: 'series-icon', viewBox: '0 0 16 16', 'aria-hidden': 'true' }, [
+        h('polyline', { key: 'p', points: '1,13 5,8 8,10.5 11,4 15,7', className: 'series-icon-line' }),
+      ]),
+      h('div', { className: 'series-popover', key: 'pop' }, [
+        h('div', { className: 'series-popover-title', key: 'title' },
+          G.stoLabel(sto) + ' — ' + G.sectorLabel(sector) + ' (' + geom.minYear + '–' + geom.maxYear + ')'
+        ),
+        h('svg', { key: 'chart', viewBox: '0 0 ' + geom.width + ' ' + geom.height, className: 'series-chart' }, [
+          zero,
+          h('polyline', { key: 'line', points: geom.points, className: 'spark-line' }),
+          dot,
+        ]),
+        h('div', { className: 'series-popover-range', key: 'range' }, [
+          h('span', { key: 'min' }, 'min ' + fmtMd(geom.minV)),
+          h('span', { key: 'max' }, 'max ' + fmtMd(geom.maxV)),
+        ]),
+      ]),
+    ]);
+  }
+
   // ---------- Carte ----------
   function Card({ sector, entry, sto, year, value, effectiveSign }) {
     const signClass = value === null ? '' : value >= 0 ? 'pos' : 'neg';
@@ -41,7 +75,10 @@
       h('div', { className: 'card-sector', key: 'sec' }, G.sectorLabel(sector)),
       h('div', { className: 'card-value ' + signClass, key: 'val' }, fmtMd(value)),
       h('div', { className: 'card-caption', key: 'cap' }, G.stoLabel(sto)),
-      h('div', { className: 'card-year', key: 'year' }, 'Année ' + year),
+      h('div', { className: 'card-year', key: 'year' }, [
+        'Année ' + year,
+        h(SeriesHover, { key: 'series', sector, entry, sto, year }),
+      ]),
     ];
     if (effectiveSign !== undefined) {
       children.push(

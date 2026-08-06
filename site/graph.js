@@ -21,6 +21,16 @@
       return Object.keys(v).sort((a, b) => +a - +b);
     }
 
+    // série annuelle complète d'un poste, triée par année croissante,
+    // pour affichage en mini-graphique (sparkline)
+    function series(sector, entry, sto) {
+      const v = ((D.values[sector] || {})[entry] || {})[sto];
+      if (!v) return [];
+      return Object.keys(v)
+        .map(y => ({ year: +y, value: v[y] }))
+        .sort((a, b) => a.year - b.year);
+    }
+
     // formules auxquelles participe le poste (sector,entry,sto), avec un
     // court résumé (libellé + nombre de membres)
     function getFormulasFor(sector, entry, sto) {
@@ -67,12 +77,39 @@
 
     return {
       data: D,
-      keyOf, getValue, stoLabel, sectorLabel, entryLabel, availableYears,
+      keyOf, getValue, stoLabel, sectorLabel, entryLabel, availableYears, series,
       getFormulasFor, expandFormula, checkIdentity,
     };
   }
 
-  const api = { makeGraph, keyOf };
+  // Calcule la géométrie (points SVG, échelles) d'un mini-graphique en
+  // ligne pour une série {year,value}[] triée par année. Pure fonction,
+  // sans DOM, réutilisable telle quelle dans app.js et testable directement.
+  function sparklineGeometry(seriesArr, opts) {
+    opts = opts || {};
+    const width = opts.width || 220;
+    const height = opts.height || 70;
+    const pad = opts.pad !== undefined ? opts.pad : 6;
+    if (!seriesArr || seriesArr.length === 0) return null;
+
+    const values = seriesArr.map(p => p.value);
+    const minV = Math.min(...values);
+    const maxV = Math.max(...values);
+    const minYear = seriesArr[0].year;
+    const maxYear = seriesArr[seriesArr.length - 1].year;
+    const spanV = (maxV - minV) || 1;
+    const spanYear = (maxYear - minYear) || 1;
+
+    function xFor(year) { return pad + ((year - minYear) / spanYear) * (width - 2 * pad); }
+    function yFor(value) { return height - pad - ((value - minV) / spanV) * (height - 2 * pad); }
+
+    const points = seriesArr.map(p => xFor(p.year).toFixed(1) + ',' + yFor(p.value).toFixed(1)).join(' ');
+    const zeroY = (minV <= 0 && maxV >= 0) ? yFor(0) : null;
+
+    return { points, width, height, minV, maxV, minYear, maxYear, xFor, yFor, zeroY };
+  }
+
+  const api = { makeGraph, keyOf, sparklineGeometry };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.TeeGraphLib = api;
 })(typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : null));
