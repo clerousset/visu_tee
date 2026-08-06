@@ -30,7 +30,8 @@ const formulas = G.getFormulasFor('S1', 'B', 'B9');
 assert(formulas.length >= 2, `B9/S1 participe à >=2 formules (trouvé ${formulas.length})`);
 
 // 3) expansion de la définition de B9 et vérification de l'identité comptable pour 2024
-const defB9 = formulas.find(f => f.label.startsWith('Définition'));
+// (le libellé brut du script R pour cette identité est "Lien B9 B8", pas "Définition ...")
+const defB9 = formulas.find(f => f.label !== 'Ventilation en sous-secteur');
 assert(!!defB9, 'une formule de définition existe pour B9');
 if (defB9) {
   const exp = G.expandFormula(defB9.id, 'S1', 'B', 'B9', '2024');
@@ -54,7 +55,7 @@ if (defB9) {
 }
 
 // 4) formule de ventilation par secteur : la somme des sous-secteurs ≈ le total
-const ventil = formulas.find(f => f.label.startsWith('Ventilation par secteur'));
+const ventil = formulas.find(f => f.label === 'Ventilation en sous-secteur');
 assert(!!ventil, 'une formule de ventilation par secteur existe pour B9');
 if (ventil) {
   const exp = G.expandFormula(ventil.id, 'S1', 'B', 'B9', '2024');

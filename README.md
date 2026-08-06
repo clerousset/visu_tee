@@ -36,11 +36,12 @@ vérifier la connexion et recharger la page.
 ## Comment ça marche
 
 - On part d'une carte (par défaut : capacité/besoin de financement — B9 —
-  de l'économie totale, année la plus récente). Secteur, poste de départ et
-  année sont modifiables en haut de page.
+  de l'économie totale, année la plus récente). Poste de départ et année
+  sont modifiables en haut de page ; les autres secteurs restent
+  accessibles en dépliant les identités de ventilation par secteur.
 - Si la valeur affichée participe à une ou plusieurs identités comptables,
-  des boutons apparaissent sous la carte (ex. « Définition : Capacité de
-  financement (B9) », « Ventilation par secteur — B9 »).
+  des boutons apparaissent sous la carte, avec le libellé brut de
+  `formules_TEE.csv` (ex. « Lien B9 B8 », « Ventilation en sous-secteur »).
 - Cliquer sur un bouton déplie les autres postes de cette identité, avec un
   badge +/- indiquant s'ils s'ajoutent ou se retranchent pour reconstituer
   la valeur de départ, et l'équation correspondante affichée en toutes

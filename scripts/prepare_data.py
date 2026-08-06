@@ -89,18 +89,6 @@ def detect_target(fid, group, labels):
     return members[0]
 
 
-def nicer_label(fid, group, target, labels):
-    label = group["label"]
-    t_label = labels["STO"].get(target["sto"], target["sto"])
-    if is_definition_label(label):
-        return f"Définition : {t_label} ({target['sto']})"
-    if label == "Ventilation en sous-secteur":
-        return f"Ventilation par secteur — {t_label} ({target['sto']})"
-    if label == "Ventilation en sous-catégorie":
-        return f"Décomposition en sous-catégories — {t_label} ({target['sto']})"
-    return label
-
-
 def load_values(src_csv, needed_keys):
     # needed_keys: set of (sector, entry, sto)
     values = {}  # sector -> entry -> sto -> year -> value
@@ -163,10 +151,8 @@ def main():
         g["members"] = uniq_members
 
         target = detect_target(fid, g, labels)
-        nice = nicer_label(fid, g, target, labels)
         formulas[fid] = {
-            "label": nice,
-            "rawLabel": g["label"],
+            "label": g["label"],
             "target": target,
             "members": g["members"],
         }
