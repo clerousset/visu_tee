@@ -59,6 +59,10 @@
           effectiveSign: -originSigne * m.signe,
           value: getValue(m.sector, m.entry, m.sto, year),
         }));
+      // les soldes (position "B") passent toujours en premier à l'affichage
+      // (tri stable : l'ordre relatif du reste, tel que dans formules_TEE.csv,
+      // est conservé)
+      others.sort((a, b) => (a.entry === 'B' ? 0 : 1) - (b.entry === 'B' ? 0 : 1));
       return { id, label: f.label, originSigne, others };
     }
 

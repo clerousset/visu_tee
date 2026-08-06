@@ -41,6 +41,16 @@ if (defB9) {
 
   const check = G.checkIdentity(defB9.id, '2024');
   assert(check !== null && Math.abs(check) < 5, `checkIdentity ≈ 0 pour la définition de B9 en 2024 (valeur=${check})`);
+
+  // les soldes (entry === 'B') doivent apparaître en premier
+  const entries = exp.others.map(m => m.entry);
+  const firstNonB = entries.findIndex(e => e !== 'B');
+  const lastB = entries.lastIndexOf('B');
+  assert(
+    firstNonB === -1 || lastB === -1 || lastB < firstNonB,
+    `les membres "B" (soldes) apparaissent avant les autres dans l'expansion (ordre observé: ${entries.join(',')})`
+  );
+  assert(exp.others[0].entry === 'B', `le premier membre déplié est un solde (trouvé entry=${exp.others[0].entry})`);
 }
 
 // 4) formule de ventilation par secteur : la somme des sous-secteurs ≈ le total
