@@ -3,110 +3,64 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Séquence des comptes — Tableau Économique d'Ensemble</title>
+<title>Explorateur du TEE — comptes nationaux</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <header>
-  <h1><span class="dot"></span> Séquence des comptes — TEE</h1>
-  <div class="sub">Comptes nationaux annuels (INSEE) · Tableau Économique d'Ensemble par secteur institutionnel, 1949–2024</div>
+  <h1><span class="dot"></span> Explorateur du Tableau Économique d'Ensemble</h1>
+  <div class="sub">Comptes nationaux annuels (INSEE) · partez d'un solde et dépliez les identités comptables qui l'expliquent</div>
 </header>
 
-<div class="controls">
-  <div class="sector-tabs" id="sectorTabs"></div>
-  <div class="year-control">
-    <label for="yearSlider">Année</label>
-    <button id="yearPrev" aria-label="Année précédente">−</button>
-    <input type="range" id="yearSlider">
-    <button id="yearNext" aria-label="Année suivante">+</button>
-    <span class="year-value" id="yearValue"></span>
-  </div>
+<div id="root">
+  <div class="loading-fallback">Chargement…</div>
 </div>
 
-<main>
-
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Séquence des comptes</h2>
-      <div class="headline">Capacité / besoin de financement : <strong id="headlineValue" class="headline-num">—</strong></div>
-    </div>
-    <div class="chart-box tall"><canvas id="waterfallCanvas"></canvas></div>
-    <div class="legend-note">
-      <span><i style="background:var(--total)"></i> Solde (valeur ajoutée / capacité de financement)</span>
-      <span><i style="background:var(--pos)"></i> Compte en hausse</span>
-      <span><i style="background:var(--neg)"></i> Compte en baisse</span>
-    </div>
-    <table class="solde-table" id="soldeTable">
-      <thead><tr><th>Solde</th><th style="text-align:right">Valeur</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </section>
-
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Évolution dans le temps</h2>
-      <div class="row-controls">
-        <select id="soldeSelect"></select>
-        <label class="checkbox"><input type="checkbox" id="compareAll"> Comparer tous les secteurs</label>
-      </div>
-    </div>
-    <div class="chart-box"><canvas id="evolutionCanvas"></canvas></div>
-  </section>
-
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Comparaison sectorielle</h2>
-      <div class="headline">Année <strong id="compYear"></strong></div>
-    </div>
-    <div class="chart-box"><canvas id="comparisonCanvas"></canvas></div>
-  </section>
-
-  <p class="footnote">
-    Source : INSEE, comptes nationaux annuels (base 2020), série SDMX DD_CNA_TEE — valeurs en euros courants,
-    France, non consolidé. Les 6 secteurs suivent la séquence des comptes : compte de production (B1G, valeur
-    ajoutée brute) → compte d'exploitation (B2A3G, EBE + revenu mixte) → compte d'affectation des revenus
-    primaires (B5G) → compte de distribution secondaire du revenu (B6G, revenu disponible brut) → compte
-    d'utilisation du revenu (B8G, épargne brute) → compte de capital (B9, capacité ou besoin de financement).
-    Données préparées par <code>scripts/prepare_data.py</code> à partir de <code>data/DD_CNA_TEE_data.csv</code>.
-  </p>
-
-</main>
-
-<footer>Site généré localement — données INSEE, comptes nationaux annuels.</footer>
-
 <script>
-// Charge Chart.js depuis plusieurs CDN (avec repli automatique si le premier
-// est inaccessible), puis seulement ensuite les données et l'application.
-// Cela nécessite un accès internet au premier chargement (bibliothèque non
-// embarquée dans le dépôt) ; voir README.md pour la rendre 100% hors-ligne.
-(function loadFirstAvailable(urls, onDone) {
-  if (!urls.length) { onDone(false); return; }
-  var s = document.createElement('script');
-  s.src = urls[0];
-  s.onload = function () { onDone(true); };
-  s.onerror = function () { loadFirstAvailable(urls.slice(1), onDone); };
-  document.head.appendChild(s);
-})([
-  'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js',
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js',
-  'https://unpkg.com/chart.js@4.4.4/dist/chart.umd.min.js',
-], function (ok) {
+// Charge React, ReactDOM (UMD, production) depuis plusieurs CDN avec repli
+// automatique, puis les scripts de l'application, dans l'ordre.
+function loadResource(candidateUrls, cb) {
+  (function tryNext(i) {
+    if (i >= candidateUrls.length) { cb(false); return; }
+    var s = document.createElement('script');
+    s.src = candidateUrls[i];
+    s.onload = function () { cb(true); };
+    s.onerror = function () { tryNext(i + 1); };
+    document.head.appendChild(s);
+  })(0);
+}
+
+function loadSequence(resources, cb) {
+  (function next(i) {
+    if (i >= resources.length) { cb(true); return; }
+    loadResource(resources[i], function (ok) {
+      if (!ok) { cb(false, resources[i]); return; }
+      next(i + 1);
+    });
+  })(0);
+}
+
+loadSequence([
+  [
+    'https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js',
+    'https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js',
+    'https://unpkg.com/react@18.3.1/umd/react.production.min.js',
+  ],
+  [
+    'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js',
+    'https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js',
+    'https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js',
+  ],
+  ['graph.js'],
+  ['data/tee_graph.js'],
+  ['app.js'],
+], function (ok, failedResource) {
   if (!ok) {
-    var warn = document.createElement('div');
-    warn.style.cssText = 'background:#3a1e1e;color:#ff6b6b;padding:14px 24px;font:13px sans-serif;border-bottom:1px solid #ff6b6b';
-    warn.textContent = "Impossible de charger la bibliothèque de graphiques (Chart.js) : vérifiez votre connexion internet, nécessaire au premier affichage de cette page.";
-    document.body.prepend(warn);
-    return;
+    var root = document.getElementById('root');
+    root.innerHTML = '<div class="loading-fallback error">Impossible de charger une ressource nécessaire au site '
+      + '(' + failedResource.join(' / ') + '). Vérifiez votre connexion internet et rechargez la page.</div>';
   }
-  var dataScript = document.createElement('script');
-  dataScript.src = 'data/tee_data.js';
-  dataScript.onload = function () {
-    var appScript = document.createElement('script');
-    appScript.src = 'app.js';
-    document.body.appendChild(appScript);
-  };
-  document.body.appendChild(dataScript);
 });
 </script>
 </body>

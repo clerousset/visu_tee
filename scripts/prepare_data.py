@@ -1,20 +1,20 @@
 """
-Prépare les données du Tableau Économique d'Ensemble (TEE) / séquence des
-comptes par secteur institutionnel pour le site de visualisation.
+Prépare les données du Tableau Économique d'Ensemble (TEE) pour le site
+d'exploration par cartes (site/app.js).
 
-Lit data/DD_CNA_TEE_data.csv (source SDMX INSEE) et data/DD_CNA_TEE_metadata.csv,
-filtre sur les mêmes critères que R/genere_formule_TEE.r (unité en euros courants,
-zone France, non consolidé, hors instrument financier détaillé), puis construit
-un fichier JS statique (site/data/tee_data.js) embarquant :
-  - les 8 soldes de la séquence des comptes par secteur x année
-  - le détail des principaux flux (ressources/emplois) par étape
-  - les libellés français des secteurs et des opérations
+Construit un graphe de valeurs : chaque nœud est une valeur observée
+(secteur institutionnel x poste comptable x position C/D/B x année) et les
+arêtes sont les identités comptables de data/formules_TEE.csv (définition
+d'un solde, ventilation par sous-secteur, décomposition en sous-catégorie).
 
-Sortie : site/data/tee_data.js (variable JS TEE_DATA), pour un chargement
-sans serveur (ouverture directe du site en local, file://).
+Le fichier formules_TEE.csv ne contient qu'un instantané pour l'année 2024
+(généré par R/genere_formule_TEE.r) : les identités comptables qu'il décrit
+sont considérées valables quelle que soit l'année (mêmes règles de calcul
+des comptes nationaux), donc réutilisées telles quelles pour toutes les
+années disponibles dans data/DD_CNA_TEE_data.csv.
 
-Volontairement écrit sans dépendance externe (pas de pandas) : lecture en
-streaming avec le module csv standard, pour rester rapide sur de gros fichiers.
+Sortie : site/data/tee_graph.js (variable JS TEE_GRAPH), embarquée pour un
+chargement sans serveur (file://).
 """
 import csv
 import json
@@ -22,32 +22,19 @@ import os
 import sys
 
 DATA_DIR = "data"
-OUT_PATH = "site/data/tee_data.js"
+OUT_PATH = "site/data/tee_graph.js"
 
 SECTEURS = ["S1", "S11", "S12", "S13", "S14", "S15"]
 
-SOLDES = {"B1G", "B2G", "B3G", "B2A3G", "B5G", "B6G", "B8G", "B9"}
+# priorité de détection de la "cible" d'une identité de type Définition (le
+# solde que l'identité permet de calculer à partir des autres postes)
+DEFINITION_TARGET_PRIORITY = ["B9", "B8G", "B6G", "B5G", "B1G"]
 
-FLUX_DETAIL = [
-    ("D1", "D"), ("D2", "D"), ("D3", "D"),
-    ("D1", "C"), ("D2", "C"), ("D3", "C"),
-    ("D4", "D"), ("D4", "C"),
-    ("D6", "D"), ("D6", "C"),
-    ("D7", "D"), ("D7", "C"),
-    ("P3", "D"),
-    ("D8", "D"), ("D8", "C"),
-    ("P5", "D"),
-    ("D9P", "D"), ("D9R", "C"),
-    ("NP", "D"),
-]
-FLUX_KEYS = {f"{sto}_{entry}" for sto, entry in FLUX_DETAIL}
-NEEDED_STO = SOLDES | {sto for sto, _ in FLUX_DETAIL}
-
-STATUS_PRIORITY = {"D": 0, "SD": 1, "PROV": 2}
+SEED = {"sector": "S1", "entry": "B", "sto": "B9"}
 
 
 def load_metadata():
-    labels = {"REF_SECTOR": {}, "STO": {}}
+    labels = {"REF_SECTOR": {}, "STO": {}, "ACCOUNTING_ENTRY": {}}
     with open(f"{DATA_DIR}/DD_CNA_TEE_metadata.csv", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f, delimiter=";", quotechar='"')
         for row in reader:
@@ -57,9 +44,77 @@ def load_metadata():
     return labels
 
 
-def load_and_aggregate(src_csv):
-    # clé -> (prio_statut, valeur)  ; clé = (REF_SECTOR, ACCOUNTING_ENTRY, STO, TIME_PERIOD)
-    best = {}
+def load_formulas():
+    # id_formule est ré-attribué à partir de 1 indépendamment pour chaque
+    # bloc de calcul du script R (cur_group_id() par bloc) : il n'est donc
+    # PAS unique globalement. On regroupe par (formule, id_formule).
+    groups = {}  # "label|id" -> {"label": str, "members": [ {sector,entry,sto,signe} ]}
+    with open(f"{DATA_DIR}/formules_TEE.csv", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=",", quotechar='"')
+        for row in reader:
+            key = f"{row['formule']}|{row['id_formule']}"
+            g = groups.setdefault(key, {"label": row["formule"], "members": []})
+            g["members"].append({
+                "sector": row["REF_SECTOR"],
+                "entry": row["ACCOUNTING_ENTRY"],
+                "sto": row["STO"],
+                "signe": int(row["signe"]),
+            })
+
+    # Bug connu du script R : le bloc "Définition B6G" réutilise par erreur
+    # le libellé "Définition B5G" ET reprend la même numérotation (1..6 par
+    # secteur) que le vrai bloc B5G, ce qui les fait tomber dans le même
+    # groupe (label, id) ci-dessus. On sépare les deux sous-ensembles de
+    # lignes mélangées à l'aide des postes qui leur sont propres.
+    B6G_STO = {"B6G", "D6", "D7"}
+    fixed = {}
+    for key, g in groups.items():
+        if g["label"] == "Définition B5G" and any(m["sto"] == "B6G" for m in g["members"]):
+            b6g_members = [m for m in g["members"] if m["sto"] in B6G_STO]
+            b5g_members = [m for m in g["members"] if m["sto"] not in B6G_STO]
+            fixed[key + "|b6g"] = {"label": "Définition B6G", "members": b6g_members}
+            fixed[key + "|b5g"] = {"label": "Définition B5G", "members": b5g_members}
+        else:
+            fixed[key] = g
+    return fixed
+
+
+def detect_target(fid, group, labels):
+    label = group["label"]
+    members = group["members"]
+    if label.startswith("Définition"):
+        by_sto = {m["sto"]: m for m in members if m["entry"] == "B"}
+        for candidate in DEFINITION_TARGET_PRIORITY:
+            if candidate in by_sto:
+                return by_sto[candidate]
+        return members[0]
+    if label == "Ventilation en sous-secteur":
+        for m in members:
+            if m["sector"] == "S1":
+                return m
+        return members[0]
+    if label == "Ventilation en sous-catégorie":
+        return min(members, key=lambda m: len(m["sto"]))
+    return members[0]
+
+
+def nicer_label(fid, group, target, labels):
+    label = group["label"]
+    t_label = labels["STO"].get(target["sto"], target["sto"])
+    if label.startswith("Définition"):
+        return f"Définition : {t_label} ({target['sto']})"
+    if label == "Ventilation en sous-secteur":
+        return f"Ventilation par secteur — {t_label} ({target['sto']})"
+    if label == "Ventilation en sous-catégorie":
+        return f"Décomposition en sous-catégories — {t_label} ({target['sto']})"
+    return label
+
+
+def load_values(src_csv, needed_keys):
+    # needed_keys: set of (sector, entry, sto)
+    values = {}  # sector -> entry -> sto -> year -> value
+    status_priority = {"D": 0, "SD": 1, "PROV": 2}
+    best_status = {}  # (sector,entry,sto,year) -> priority already stored
     with open(src_csv, encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f, delimiter=";", quotechar='"')
         for row in reader:
@@ -74,59 +129,89 @@ def load_and_aggregate(src_csv):
             if row["TRANSFORMATION"] != "N":
                 continue
             sec = row["REF_SECTOR"]
-            if sec not in SECTEURS:
-                continue
+            entry = row["ACCOUNTING_ENTRY"]
             sto = row["STO"]
-            if sto not in NEEDED_STO:
+            key3 = (sec, entry, sto)
+            if key3 not in needed_keys:
                 continue
             val = row["OBS_VALUE"]
             if not val:
                 continue
-            entry = row["ACCOUNTING_ENTRY"]
-            key = (sec, entry, sto, row["TIME_PERIOD"])
-            prio = STATUS_PRIORITY.get(row["OBS_STATUS_FR"], 9)
-            cur = best.get(key)
-            if cur is None or prio < cur[0]:
-                best[key] = (prio, round(float(val), 1))
-    return best
-
-
-def build_dataset(best):
-    balances = {sec: {} for sec in SECTEURS}
-    detail = {sec: {} for sec in SECTEURS}
-    for (sec, entry, sto, year), (_, val) in best.items():
-        if entry == "B" and sto in SOLDES:
-            balances[sec].setdefault(year, {})[sto] = val
-        key = f"{sto}_{entry}"
-        if key in FLUX_KEYS:
-            detail[sec].setdefault(year, {})[key] = val
-    return balances, detail
+            year = row["TIME_PERIOD"]
+            prio = status_priority.get(row["OBS_STATUS_FR"], 9)
+            k4 = (sec, entry, sto, year)
+            cur = best_status.get(k4)
+            if cur is not None and cur <= prio:
+                continue
+            best_status[k4] = prio
+            values.setdefault(sec, {}).setdefault(entry, {}).setdefault(sto, {})[year] = round(float(val), 1)
+    return values
 
 
 def main():
     src_data = sys.argv[1] if len(sys.argv) > 1 else f"{DATA_DIR}/DD_CNA_TEE_data.csv"
     labels = load_metadata()
-    best = load_and_aggregate(src_data)
-    balances, detail = build_dataset(best)
+    formulas_raw = load_formulas()
+
+    formulas = {}
+    index = {}  # "sector|entry|sto" -> [id_formule,...]
+    needed_keys = set()
+    for fid, g in formulas_raw.items():
+        # dédoublonnage défensif : la source contient parfois des lignes
+        # dupliquées (COUNTERPART_SECTOR distinct dans la donnée d'origine,
+        # colonne ensuite retirée par le script R) qui produisent le même
+        # triplet (secteur, position, poste) plusieurs fois dans un groupe.
+        seen = set()
+        uniq_members = []
+        for m in g["members"]:
+            k = (m["sector"], m["entry"], m["sto"])
+            if k in seen:
+                continue
+            seen.add(k)
+            uniq_members.append(m)
+        g["members"] = uniq_members
+
+        target = detect_target(fid, g, labels)
+        nice = nicer_label(fid, g, target, labels)
+        formulas[fid] = {
+            "label": nice,
+            "rawLabel": g["label"],
+            "target": target,
+            "members": g["members"],
+        }
+        for m in g["members"]:
+            needed_keys.add((m["sector"], m["entry"], m["sto"]))
+            idxkey = f"{m['sector']}|{m['entry']}|{m['sto']}"
+            index.setdefault(idxkey, []).append(fid)
+
+    # s'assurer que la valeur de départ (graine) est bien couverte même si
+    # elle n'appartenait à aucune formule (par prudence)
+    needed_keys.add((SEED["sector"], SEED["entry"], SEED["sto"]))
+
+    values = load_values(src_data, needed_keys)
 
     payload = {
         "unit": "Millions d'euros courants",
+        "seed": SEED,
         "secteurs": SECTEURS,
         "labelsSecteur": {s: labels["REF_SECTOR"].get(s, s) for s in SECTEURS},
         "labelsSto": labels["STO"],
-        "balances": balances,
-        "detail": detail,
+        "labelsEntry": labels["ACCOUNTING_ENTRY"],
+        "formulas": formulas,
+        "index": index,
+        "values": values,
     }
 
     os.makedirs("site/data", exist_ok=True)
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         f.write("// Fichier généré par scripts/prepare_data.py — ne pas éditer à la main.\n")
-        f.write("const TEE_DATA = ")
+        f.write("const TEE_GRAPH = ")
         json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
         f.write(";\n")
 
-    n_years = sum(len(v) for v in balances.values())
-    print(f"OK — {OUT_PATH} généré, {n_years} couples secteur/année avec au moins un solde.")
+    n_keys = len(needed_keys)
+    n_formulas = len(formulas)
+    print(f"OK — {OUT_PATH} généré : {n_formulas} identités comptables, {n_keys} postes (secteur x poste x position) suivis.")
 
 
 if __name__ == "__main__":

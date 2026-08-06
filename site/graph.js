@@ -1,0 +1,78 @@
+// Logique pure (sans DOM) d'exploration du graphe de valeurs du TEE.
+// Séparée de app.js pour rester testable directement avec Node (tests/test_graph.js).
+(function (root) {
+  function keyOf(sector, entry, sto) { return sector + '|' + entry + '|' + sto; }
+
+  function makeGraph(D) {
+    function getValue(sector, entry, sto, year) {
+      const v = ((D.values[sector] || {})[entry] || {})[sto];
+      if (!v) return null;
+      const val = v[String(year)];
+      return val === undefined ? null : val;
+    }
+
+    function stoLabel(sto) { return D.labelsSto[sto] || sto; }
+    function sectorLabel(sector) { return D.labelsSecteur[sector] || sector; }
+    function entryLabel(entry) { return D.labelsEntry[entry] || entry; }
+
+    function availableYears(sector, entry, sto) {
+      const v = ((D.values[sector] || {})[entry] || {})[sto];
+      if (!v) return [];
+      return Object.keys(v).sort((a, b) => +a - +b);
+    }
+
+    // formules auxquelles participe le poste (sector,entry,sto), avec un
+    // court résumé (libellé + nombre de membres)
+    function getFormulasFor(sector, entry, sto) {
+      const ids = D.index[keyOf(sector, entry, sto)] || [];
+      return ids.map(id => ({ id, label: D.formulas[id].label, size: D.formulas[id].members.length }));
+    }
+
+    // Calcule, pour une formule donnée et un poste d'origine (qui doit être
+    // membre de cette formule), les autres membres avec leur "signe effectif"
+    // relatif à l'origine : origin = Σ effectiveSign_j * value_j
+    function expandFormula(id, originSector, originEntry, originSto, year) {
+      const f = D.formulas[id];
+      if (!f) return null;
+      const originMember = f.members.find(
+        m => m.sector === originSector && m.entry === originEntry && m.sto === originSto
+      );
+      if (!originMember) return null;
+      const originSigne = originMember.signe;
+      const others = f.members
+        .filter(m => !(m.sector === originSector && m.entry === originEntry && m.sto === originSto))
+        .map(m => ({
+          sector: m.sector,
+          entry: m.entry,
+          sto: m.sto,
+          signe: m.signe,
+          effectiveSign: -originSigne * m.signe,
+          value: getValue(m.sector, m.entry, m.sto, year),
+        }));
+      return { id, label: f.label, originSigne, others };
+    }
+
+    // vérifie (à titre informatif) que Σ signe*valeur ≈ 0 pour une formule à
+    // une année donnée ; retourne null si des valeurs manquent
+    function checkIdentity(id, year) {
+      const f = D.formulas[id];
+      let sum = 0;
+      for (const m of f.members) {
+        const v = getValue(m.sector, m.entry, m.sto, year);
+        if (v === null) return null;
+        sum += m.signe * v;
+      }
+      return sum;
+    }
+
+    return {
+      data: D,
+      keyOf, getValue, stoLabel, sectorLabel, entryLabel, availableYears,
+      getFormulasFor, expandFormula, checkIdentity,
+    };
+  }
+
+  const api = { makeGraph, keyOf };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  if (root) root.TeeGraphLib = api;
+})(typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : null));
