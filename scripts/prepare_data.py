@@ -60,29 +60,20 @@ def load_formulas():
                 "sto": row["STO"],
                 "signe": int(row["signe"]),
             })
+    return groups
 
-    # Bug connu du script R : le bloc "Définition B6G" réutilise par erreur
-    # le libellé "Définition B5G" ET reprend la même numérotation (1..6 par
-    # secteur) que le vrai bloc B5G, ce qui les fait tomber dans le même
-    # groupe (label, id) ci-dessus. On sépare les deux sous-ensembles de
-    # lignes mélangées à l'aide des postes qui leur sont propres.
-    B6G_STO = {"B6G", "D6", "D7"}
-    fixed = {}
-    for key, g in groups.items():
-        if g["label"] == "Définition B5G" and any(m["sto"] == "B6G" for m in g["members"]):
-            b6g_members = [m for m in g["members"] if m["sto"] in B6G_STO]
-            b5g_members = [m for m in g["members"] if m["sto"] not in B6G_STO]
-            fixed[key + "|b6g"] = {"label": "Définition B6G", "members": b6g_members}
-            fixed[key + "|b5g"] = {"label": "Définition B5G", "members": b5g_members}
-        else:
-            fixed[key] = g
-    return fixed
+
+def is_definition_label(label):
+    # "Lien B9 B8" est une identité de définition comme les autres (elle
+    # relie B9 à B8G + ses composantes), simplement nommée différemment
+    # dans le script R.
+    return label.startswith("Définition") or label == "Lien B9 B8"
 
 
 def detect_target(fid, group, labels):
     label = group["label"]
     members = group["members"]
-    if label.startswith("Définition"):
+    if is_definition_label(label):
         by_sto = {m["sto"]: m for m in members if m["entry"] == "B"}
         for candidate in DEFINITION_TARGET_PRIORITY:
             if candidate in by_sto:
@@ -101,7 +92,7 @@ def detect_target(fid, group, labels):
 def nicer_label(fid, group, target, labels):
     label = group["label"]
     t_label = labels["STO"].get(target["sto"], target["sto"])
-    if label.startswith("Définition"):
+    if is_definition_label(label):
         return f"Définition : {t_label} ({target['sto']})"
     if label == "Ventilation en sous-secteur":
         return f"Ventilation par secteur — {t_label} ({target['sto']})"

@@ -2,7 +2,7 @@ library(dplyr)
 
 liste_ref_sector = c("S1", "S11", "S12", "S13", "S14", "S15")
 liste_exclus = c("B2A3N", "B4G", "D21X31")
-df = read.csv("DD_CNA_TEE_data.csv", sep = ";") %>% 
+df = read.csv("data/DD_CNA_TEE_data.csv", sep = ";") %>% 
     filter(TIME_PERIOD == 2024 & UNIT_MEASURE == "XDC" & REF_SECTOR %in% liste_ref_sector &
     COUNTERPART_AREA == "W0" & CONSOLIDATION == "N" & INSTR_ASSET == "_Z") %>%
     select(REF_SECTOR, TIME_PERIOD, OBS_VALUE, ACCOUNTING_ENTRY, STO, COUNTERPART_SECTOR) %>% distinct()
@@ -68,7 +68,7 @@ b6g = df %>%
    mutate(signe = if_else(STO == "B6G" |  ACCOUNTING_ENTRY == 'D', 1, -1)) %>%
    group_by(REF_SECTOR) %>% 
    #summarise(ok = sum(signe * OBS_VALUE))
-  mutate(formule = "Définition B5G", id_formule = cur_group_id()) %>% ungroup() %>%
+  mutate(formule = "Définition B6G", id_formule = cur_group_id()) %>% ungroup() %>%
    select(-OBS_VALUE)
 
  #  B8G = B6G - P3 -D8_D + D8_C
@@ -88,11 +88,11 @@ b8g = df %>%
    mutate(signe = if_else(STO == "B9" |  ACCOUNTING_ENTRY == 'D', 1, -1)) %>%
    group_by(REF_SECTOR) %>% 
    #summarise(ok = sum(signe * OBS_VALUE))
-   mutate(formule = "Définition B9", id_formule = cur_group_id()) %>% ungroup() %>%
+   mutate(formule = "Lien B9 B8", id_formule = cur_group_id()) %>% ungroup() %>%
    select(-OBS_VALUE)     
 
 rbind(b9g, b8g, b6g, b5g, b2g, ss_ventil, ss_secteur) %>%
    select(REF_SECTOR, TIME_PERIOD, ACCOUNTING_ENTRY, STO, signe, formule, id_formule) %>%
-   write.csv("formules_TEE.csv", row.names = FALSE)
+   write.csv("data/formules_TEE.csv", row.names = FALSE)
 
 

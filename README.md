@@ -15,8 +15,8 @@ financières, administrations publiques, ménages, ISBLSM. Années : 1949–2024
 
 ```
 data/     données sources (SDMX INSEE) : DD_CNA_TEE_data.csv, métadonnées, formules_TEE.csv
-R/        script R d'origine (calcule les identités comptables de formules_TEE.csv)
-scripts/  script Python de préparation des données pour le site
+R/        script R de référence (calcule les identités comptables de formules_TEE.csv)
+scripts/  scripts Python de préparation des données pour le site
 site/     site web statique (HTML/CSS/JS, React sans étape de build, aucun serveur requis)
 tests/    tests de non-régression sans dépendance externe
 ```
@@ -54,17 +54,30 @@ certains postes détaillés peuvent être indisponibles.
 
 ## Régénérer les données
 
-Si `data/DD_CNA_TEE_data.csv` ou `data/formules_TEE.csv` sont mis à jour :
+Si `data/DD_CNA_TEE_data.csv` est mis à jour (nouvel export INSEE) :
 
 ```
 python3 scripts/prepare_data.py
 ```
 
-Cela recrée `site/data/tee_graph.js`. Le script ne dépend que de la
-bibliothèque standard Python (aucune installation requise). Il corrige aussi
-un bug connu du script R d'origine : le bloc de calcul de la définition de
-B6G réutilise par erreur le libellé et la numérotation de celui de B5G — le
-script Python détecte et sépare les deux identités mélangées.
+Cela recrée `site/data/tee_graph.js` à partir de `data/formules_TEE.csv` et
+`data/DD_CNA_TEE_data.csv`, sans transformation supplémentaire — le fichier
+`formules_TEE.csv` est la source de vérité pour les identités comptables.
+
+Si `R/genere_formule_TEE.r` est modifié (nouvelle identité, correction), il
+faut d'abord régénérer `data/formules_TEE.csv` en le relançant sous R, **ou**,
+si R n'est pas disponible, en relançant son portage Python équivalent :
+
+```
+python3 scripts/regenerate_formules.py   # relit R/genere_formule_TEE.r en Python, écrit data/formules_TEE.csv
+python3 scripts/prepare_data.py          # puis régénère le site à partir du csv mis à jour
+```
+
+`scripts/regenerate_formules.py` reproduit fidèlement la logique du script R
+(mêmes filtres, mêmes jointures de validation) ; toute modification du `.r`
+doit être répercutée manuellement dans ce fichier. Si le script R est
+modifié différemment de ce que ce portage reproduit, il vaut mieux régénérer
+`formules_TEE.csv` directement avec R et ignorer `regenerate_formules.py`.
 
 ## Tests
 
