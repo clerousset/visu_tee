@@ -9,6 +9,10 @@
   --accent-2: #7ee0c3;
   --pos: #4fd18b;
   --neg: #ff6b6b;
+  --entry-c: #7ee0c3;
+  --entry-d: #ffb454;
+  --entry-b: #5b8def;
+  --entry-z: #9aa0ac;
   --radius: 12px;
 }
 * { box-sizing: border-box; }
@@ -105,6 +109,12 @@ main {
   min-width: 250px;
   max-width: 320px;
 }
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
 .card-sto {
   display: inline-block;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -116,8 +126,19 @@ main {
   border: 1px solid var(--border);
   border-radius: 5px;
   padding: 1px 6px;
-  margin-bottom: 8px;
 }
+.card-entry-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.card-entry-badge.entry-C { background: color-mix(in srgb, var(--entry-c) 22%, transparent); color: var(--entry-c); }
+.card-entry-badge.entry-D { background: color-mix(in srgb, var(--entry-d) 22%, transparent); color: var(--entry-d); }
+.card-entry-badge.entry-B { background: color-mix(in srgb, var(--entry-b) 22%, transparent); color: var(--entry-b); }
+.card-entry-badge.entry-_Z { background: color-mix(in srgb, var(--entry-z) 22%, transparent); color: var(--entry-z); }
+
 .card-sentence {
   margin: 0;
   font-size: 13.5px;
@@ -131,15 +152,6 @@ main {
 }
 .card-value.pos { color: var(--pos); }
 .card-value.neg { color: var(--neg); }
-.card-meaning {
-  font-size: 11px;
-  font-style: italic;
-  color: var(--text-dim);
-  margin-top: 8px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
-  line-height: 1.35;
-}
 
 .series-hover {
   position: relative;

@@ -81,12 +81,12 @@
   // ---------- Carte ----------
   function Card({ sector, entry, sto, year, value, effectiveSign, hasFormulas }) {
     const signClass = value === null ? '' : value >= 0 ? 'pos' : 'neg';
-    const entryText = lowerFirst(G.entryLabel(entry));
+    const meaningText = lowerFirst(G.stoLabel(sto));
 
     const sentence = h('p', { className: 'card-sentence', key: 'sentence' }, [
       'Les ',
       h('strong', { className: 'card-value ' + signClass, key: 'val' }, fmtMd(value)),
-      ' de ' + entryText + ' de ',
+      ' de ' + meaningText + ' de ',
       String(year),
       ' ',
       h(SeriesHover, { key: 'series', sector, entry, sto, year }),
@@ -94,9 +94,11 @@
     ]);
 
     const children = [
-      h('span', { className: 'card-sto', key: 'sto' }, sto),
+      h('div', { className: 'card-top', key: 'top' }, [
+        h('span', { className: 'card-sto', key: 'sto' }, sto),
+        h('span', { className: 'card-entry-badge entry-' + entry, key: 'entry' }, G.entryLabel(entry)),
+      ]),
       sentence,
-      h('div', { className: 'card-meaning', key: 'meaning' }, G.stoLabel(sto)),
     ];
     if (effectiveSign !== undefined) {
       children.push(
