@@ -46,6 +46,11 @@ vérifier la connexion et recharger la page.
   badge +/- indiquant s'ils s'ajoutent ou se retranchent pour reconstituer
   la valeur de départ, et l'équation correspondante affichée en toutes
   lettres. Chaque nouvelle carte peut à son tour être dépliée.
+- Tant qu'au moins une identité est dépliée sur la carte de départ, un
+  panneau latéral à droite affiche un histogramme empilé divergent (un
+  panneau par identité dépliée) : chaque membre de l'identité apporte sa
+  contribution (positive vers le haut, négative vers le bas) autour d'un
+  zéro central, avec une légende et le total reconstitué en bas.
 
 Les identités comptables proviennent de `data/formules_TEE.csv`, calculées
 par `R/genere_formule_TEE.r` pour l'année 2024 uniquement ; le site applique

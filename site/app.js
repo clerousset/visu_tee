@@ -144,7 +144,7 @@
   }
 
   // ---------- Nœud carte + boutons de dépliage (récursif) ----------
-  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId }) {
+  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, onExpandedChange }) {
     const [expanded, setExpanded] = React.useState({});
     const value = G.getValue(sector, entry, sto, year);
     // on ne repropose pas la formule qui a généré cette carte (évite un
@@ -152,7 +152,11 @@
     const formulas = G.getFormulasFor(sector, entry, sto).filter(f => f.id !== excludeFormulaId);
 
     function toggle(id) {
-      setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+      setExpanded(prev => {
+        const next = { ...prev, [id]: !prev[id] };
+        if (onExpandedChange) onExpandedChange(next);
+        return next;
+      });
     }
 
     const pills = formulas.length === 0 ? null : h(
@@ -177,11 +181,82 @@
     ]);
   }
 
+  // ---------- Panneau latéral : histogramme empilé des contributions ----------
+  function StackedBarPanel({ sector, sto, year, formulaId }) {
+    const exp = G.expandFormula(formulaId, sector, 'B', sto, year);
+    if (!exp) return null;
+    const bar = TeeGraphLib.stackedBarGeometry(exp.others, { width: 64, height: 240, pad: 4 });
+    const rootValue = G.getValue(sector, 'B', sto, year);
+    const f = D.formulas[formulaId];
+
+    const rects = bar.segments.map(s =>
+      h('rect', {
+        key: s.sector + '|' + s.entry + '|' + s.sto,
+        x: 0,
+        width: bar.width,
+        y: Math.min(s.y0, s.y1),
+        height: Math.max(1, Math.abs(s.y1 - s.y0)),
+        className: 'stack-seg ' + (s.positive ? 'pos' : 'neg'),
+      }, [
+        h('title', { key: 'tt' },
+          stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '') + ' : ' + fmtMd(s.contribution)
+        ),
+      ])
+    );
+
+    const legend = bar.segments.map(s =>
+      h('div', { className: 'legend-item', key: s.sector + '|' + s.entry + '|' + s.sto }, [
+        h('span', { className: 'legend-swatch ' + (s.positive ? 'pos' : 'neg'), key: 'sw' }),
+        h('span', { className: 'legend-label', key: 'lb' },
+          stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '')),
+        h('span', { className: 'legend-value ' + (s.positive ? 'pos' : 'neg'), key: 'val' }, fmtMd(s.contribution)),
+      ])
+    );
+
+    return h('div', { className: 'sidebar-panel' }, [
+      h('div', { className: 'sidebar-title', key: 't' }, f ? f.label : formulaId),
+      h('div', { className: 'stacked-bar-row', key: 'row' }, [
+        h('svg', {
+          key: 'svg', viewBox: '0 0 ' + bar.width + ' ' + bar.height,
+          width: bar.width, height: bar.height, className: 'stacked-bar-svg',
+        }, [
+          h('line', { key: 'zero', x1: 0, x2: bar.width, y1: bar.zeroY, y2: bar.zeroY, className: 'stack-zero' }),
+        ].concat(rects)),
+        h('div', { className: 'stacked-bar-legend', key: 'legend' }, legend),
+      ]),
+      h('div', { className: 'stacked-bar-total', key: 'total' },
+        stoWithEntry(sto, 'B') + ' = ' + fmtMd(bar.total) +
+        (rootValue !== null ? ' (carte : ' + fmtMd(rootValue) + ')' : '')
+      ),
+      bar.missing > 0
+        ? h('div', { className: 'stacked-bar-note', key: 'note' }, bar.missing + ' terme(s) indisponible(s) pour ' + year)
+        : null,
+    ]);
+  }
+
+  function Sidebar({ sector, sto, year, rootExpanded }) {
+    const activeIds = Object.keys(rootExpanded).filter(id => rootExpanded[id]);
+    if (activeIds.length === 0) {
+      return h('aside', { className: 'sidebar' }, [
+        h('div', { className: 'sidebar-panel', key: 'empty' }, [
+          h('div', { className: 'sidebar-title', key: 't' }, 'Décomposition'),
+          h('div', { className: 'sidebar-empty', key: 'e' },
+            'Dépliez une identité comptable sur la carte de départ pour voir ici la contribution de chaque poste.'),
+        ]),
+      ]);
+    }
+    return h('aside', { className: 'sidebar' },
+      activeIds.map(id => h(StackedBarPanel, { key: id, sector, sto, year, formulaId: id }))
+    );
+  }
+
   // ---------- Application ----------
   function App() {
     const sector = D.seed.sector;
     const [sto, setSto] = React.useState(D.seed.sto);
     const [year, setYear] = React.useState(DEFAULT_YEAR);
+    // décompositions actives sur la carte de départ, pour le panneau latéral
+    const [rootExpanded, setRootExpanded] = React.useState({});
 
     const stoOptions = rootStoOptions(sector);
 
@@ -192,7 +267,7 @@
             'Solde de départ ',
             h('select', {
               value: sto,
-              onChange: (e) => setSto(e.target.value),
+              onChange: (e) => { setSto(e.target.value); setRootExpanded({}); },
             }, stoOptions.map(code => h('option', { key: code, value: code }, code + ' — ' + G.stoLabel(code)))),
           ]),
           h('label', { key: 'l2', className: 'inline-label' }, [
@@ -204,8 +279,14 @@
           ]),
         ]),
       ]),
-      h('main', { key: 'main' }, [
-        h(CardNode, { key: sector + '|B|' + sto, sector, entry: 'B', sto, year, depth: 0 }),
+      h('div', { className: 'layout', key: 'layout' }, [
+        h('main', { key: 'main' }, [
+          h(CardNode, {
+            key: sector + '|B|' + sto, sector, entry: 'B', sto, year, depth: 0,
+            onExpandedChange: setRootExpanded,
+          }),
+        ]),
+        h(Sidebar, { key: 'sidebar', sector, sto, year, rootExpanded }),
       ]),
       h('p', { className: 'footnote', key: 'foot' },
         "Source : INSEE, comptes nationaux annuels (base 2020), série SDMX DD_CNA_TEE. Les identités comptables (data/formules_TEE.csv) sont calculées pour 2024 puis appliquées à toutes les années disponibles ; pour des années anciennes, certains termes peuvent être indisponibles."

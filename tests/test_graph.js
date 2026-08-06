@@ -102,5 +102,22 @@ if (geom) {
 }
 assert(Lib.sparklineGeometry([]) === null, 'sparklineGeometry(série vide) renvoie null');
 
+// 7) histogramme empilé divergent (panneau latéral) pour la définition de B9
+if (defB9) {
+  const exp = G.expandFormula(defB9.id, 'S1', 'B', 'B9', '2024');
+  const bar = Lib.stackedBarGeometry(exp.others, { width: 70, height: 260, pad: 4 });
+  assert(bar.segments.length === exp.others.length, 'un segment par membre de la formule');
+  assert(Math.abs(bar.total - (bar.posSum + bar.negSum)) < 1e-6, 'total = somme des contributions positives et négatives');
+  const diffTotal = Math.abs(bar.total - seedVal);
+  assert(diffTotal < 5, `le total de l'histogramme empilé ≈ la valeur de B9/S1/2024 (écart=${diffTotal.toFixed(2)})`);
+  bar.segments.forEach(s => {
+    assert(s.y0 >= -0.01 && s.y0 <= bar.height + 0.01 && s.y1 >= -0.01 && s.y1 <= bar.height + 0.01,
+      `segment ${s.sto} dans les bornes verticales du graphique (y0=${s.y0.toFixed(1)}, y1=${s.y1.toFixed(1)})`);
+  });
+  assert(bar.missing === 0, "aucun membre manquant pour l'histogramme empilé de B9/2024");
+}
+const emptyBar = Lib.stackedBarGeometry([], { height: 260 });
+assert(emptyBar.segments.length === 0 && emptyBar.total === 0, 'stackedBarGeometry([]) renvoie une géométrie vide cohérente');
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

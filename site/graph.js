@@ -113,7 +113,54 @@
     return { points, width, height, minV, maxV, minYear, maxYear, xFor, yFor, zeroY };
   }
 
-  const api = { makeGraph, keyOf, sparklineGeometry };
+  // Géométrie d'un histogramme empilé divergent (autour d'un zéro central) :
+  // les contributions positives s'empilent vers le haut, les négatives vers
+  // le bas, pour visualiser comment les membres d'une identité comptable
+  // reconstituent le poste d'origine. `others` est le tableau renvoyé par
+  // expandFormula() (chaque membre porte déjà effectiveSign + value).
+  // Pure fonction, sans DOM, testable directement.
+  function stackedBarGeometry(others, opts) {
+    opts = opts || {};
+    const width = opts.width || 70;
+    const height = opts.height || 260;
+    const pad = opts.pad !== undefined ? opts.pad : 4;
+
+    const contributions = (others || [])
+      .filter(m => m.value !== null && m.value !== undefined)
+      .map(m => Object.assign({}, m, { contribution: m.effectiveSign * m.value }));
+
+    const posSum = contributions.filter(c => c.contribution > 0).reduce((a, c) => a + c.contribution, 0);
+    const negSum = contributions.filter(c => c.contribution < 0).reduce((a, c) => a + c.contribution, 0); // <= 0
+    const total = posSum + negSum;
+    const maxAbs = Math.max(posSum, -negSum, 1);
+
+    const zeroY = height / 2;
+    const scale = (height / 2 - pad) / maxAbs;
+
+    let cumPos = 0;
+    let cumNeg = 0;
+    const segments = contributions.map(c => {
+      let y0, y1;
+      if (c.contribution >= 0) {
+        y0 = zeroY - cumPos * scale;
+        cumPos += c.contribution;
+        y1 = zeroY - cumPos * scale;
+      } else {
+        y0 = zeroY - cumNeg * scale;
+        cumNeg += c.contribution;
+        y1 = zeroY - cumNeg * scale;
+      }
+      return {
+        sector: c.sector, entry: c.entry, sto: c.sto,
+        contribution: c.contribution, positive: c.contribution >= 0,
+        y0, y1,
+      };
+    });
+
+    return { segments, zeroY, width, height, total, posSum, negSum, missing: (others || []).length - contributions.length };
+  }
+
+  const api = { makeGraph, keyOf, sparklineGeometry, stackedBarGeometry };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.TeeGraphLib = api;
 })(typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : null));
