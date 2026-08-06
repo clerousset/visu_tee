@@ -27,6 +27,13 @@
 
   function lowerFirst(str) { return str ? str.charAt(0).toLowerCase() + str.slice(1) : str; }
 
+  // suffixe le code STO par sa position (_C / _D) quand elle est ambiguë :
+  // un même poste (ex. D7) peut apparaître à la fois en ressource et en
+  // emploi dans une même identité, d'où "D7_C" vs "D7_D"
+  function stoWithEntry(sto, entry) {
+    return (entry === 'C' || entry === 'D') ? sto + '_' + entry : sto;
+  }
+
   // article + libellé corrects pour "pour {sector}" en français (les 6
   // secteurs sont fixes, donc autant écrire l'accord une bonne fois)
   const SECTOR_PHRASE = {
@@ -115,10 +122,10 @@
     const eqParts = exp.others.map(m => {
       const sign = m.effectiveSign > 0 ? '+' : '−';
       const sectorTag = m.sector !== sector ? ' (' + m.sector + ')' : '';
-      return sign + ' ' + m.sto + sectorTag;
+      return sign + ' ' + stoWithEntry(m.sto, m.entry) + sectorTag;
     });
     return h('div', { className: 'formula-group' }, [
-      h('div', { className: 'formula-eq', key: 'eq' }, sto + ' = ' + eqParts.join(' ')),
+      h('div', { className: 'formula-eq', key: 'eq' }, stoWithEntry(sto, entry) + ' = ' + eqParts.join(' ')),
       h('div', { className: 'formula-children', key: 'ch' },
         exp.others.map(m =>
           h(CardNode, {
