@@ -65,35 +65,11 @@ header .sub {
   top: 0;
   z-index: 10;
 }
-.sector-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.sector-tabs button {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  padding: 7px 13px;
-  border-radius: 999px;
-  font-size: 12.5px;
-  cursor: pointer;
-  transition: all .15s;
-}
-.sector-tabs button:hover { color: var(--text); border-color: var(--accent); }
-.sector-tabs button.active {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: #0f1115;
-  border-color: transparent;
-  font-weight: 600;
-}
-
 .row-controls {
   display: flex;
   gap: 16px;
   align-items: center;
   flex-wrap: wrap;
-  margin-left: auto;
 }
 .inline-label {
   font-size: 12px;
@@ -272,5 +248,4 @@ main {
   .controls { padding: 14px 16px; }
   main { padding: 20px 16px 10px; }
   header { padding: 18px 16px 14px; }
-  .row-controls { margin-left: 0; }
 }

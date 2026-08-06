@@ -113,7 +113,7 @@
 
   // ---------- Application ----------
   function App() {
-    const [sector, setSector] = React.useState(D.seed.sector);
+    const sector = D.seed.sector;
     const [sto, setSto] = React.useState(D.seed.sto);
     const [year, setYear] = React.useState(DEFAULT_YEAR);
 
@@ -121,15 +121,6 @@
 
     return h('div', { className: 'app-wrap' }, [
       h('div', { className: 'controls', key: 'controls' }, [
-        h('div', { className: 'sector-tabs', key: 'sectors' },
-          D.secteurs.map(s =>
-            h('button', {
-              key: s,
-              className: s === sector ? 'active' : '',
-              onClick: () => { setSector(s); if (!rootStoOptions(s).includes(sto)) setSto('B9'); },
-            }, D.labelsSecteur[s])
-          )
-        ),
         h('div', { className: 'row-controls', key: 'row' }, [
           h('label', { key: 'l1', className: 'inline-label' }, [
             'Solde de départ ',
