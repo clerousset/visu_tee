@@ -86,10 +86,9 @@
     const sentence = h('p', { className: 'card-sentence', key: 'sentence' }, [
       'Les ',
       h('strong', { className: 'card-value ' + signClass, key: 'val' }, fmtMd(value)),
-      ' de ' + meaningText + ' de ',
-      String(year),
       ' ',
       h(SeriesHover, { key: 'series', sector, entry, sto, year }),
+      ' de ' + meaningText + ' de ' + year,
       ' pour ' + sectorPhrase(sector) + (hasFormulas ? ' peuvent se décomposer en :' : '.'),
     ]);
 
