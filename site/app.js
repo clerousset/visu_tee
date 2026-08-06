@@ -124,7 +124,11 @@
   }
 
   // ---------- Groupe de formule déplié (équation + cartes enfants) ----------
-  function FormulaGroup({ sector, entry, sto, year, formulaId, depth }) {
+  // `path` identifie de façon unique la carte parente dans l'arbre de
+  // dépliage (ex. "root>F12>S11|D|D7") ; les cartes enfants héritent d'un
+  // chemin qui préfixe le leur, ce qui permet à handleToggle() de retrouver
+  // et refermer toute une branche d'un coup (voir plus bas).
+  function FormulaGroup({ sector, entry, sto, year, formulaId, depth, path, expandedTree, onToggle }) {
     const exp = G.expandFormula(formulaId, sector, entry, sto, year);
     if (!exp) return null;
     const eqParts = exp.others.map(m => {
@@ -145,6 +149,9 @@
             effectiveSign: m.effectiveSign,
             depth: depth + 1,
             excludeFormulaId: formulaId,
+            path: path + '>' + formulaId + '>' + m.sector + '|' + m.entry + '|' + m.sto,
+            expandedTree,
+            onToggle,
           })
         )
       ),
@@ -152,35 +159,33 @@
   }
 
   // ---------- Nœud carte + boutons de dépliage (récursif) ----------
-  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, onExpandedChange }) {
-    const [expanded, setExpanded] = React.useState({});
+  // L'état "quelles identités sont dépliées" est entièrement piloté depuis
+  // App (expandedTree), pas en useState local : ainsi, replier une identité
+  // referme automatiquement (et proprement, dans le panneau latéral) toutes
+  // les sous-décompositions ouvertes en dessous, sans état local à nettoyer.
+  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, path, expandedTree, onToggle }) {
     const value = G.getValue(sector, entry, sto, year);
     // on ne repropose pas la formule qui a généré cette carte (évite un
     // dépliage trivial "vers le parent" juste après avoir déplié celui-ci)
     const formulas = G.getFormulasFor(sector, entry, sto).filter(f => f.id !== excludeFormulaId);
-
-    function toggle(id) {
-      setExpanded(prev => {
-        const next = { ...prev, [id]: !prev[id] };
-        if (onExpandedChange) onExpandedChange(next);
-        return next;
-      });
-    }
+    const active = (expandedTree[path] && expandedTree[path].active) || {};
 
     const pills = formulas.length === 0 ? null : h(
       'div', { className: 'expand-row' },
       formulas.map(f =>
         h('button', {
           key: f.id,
-          className: 'pill' + (expanded[f.id] ? ' active' : ''),
-          onClick: () => toggle(f.id),
-        }, (expanded[f.id] ? '▾ ' : '▸ ') + f.label + ' (' + f.size + ')')
+          className: 'pill' + (active[f.id] ? ' active' : ''),
+          onClick: () => onToggle(path, { sector, entry, sto, depth: depth || 0 }, f.id),
+        }, (active[f.id] ? '▾ ' : '▸ ') + f.label + ' (' + f.size + ')')
       )
     );
 
-    const groups = Object.keys(expanded)
-      .filter(id => expanded[id])
-      .map(id => h(FormulaGroup, { key: id, sector, entry, sto, year, formulaId: id, depth: depth || 0 }));
+    const groups = Object.keys(active)
+      .filter(id => active[id])
+      .map(id => h(FormulaGroup, {
+        key: id, sector, entry, sto, year, formulaId: id, depth: depth || 0, path, expandedTree, onToggle,
+      }));
 
     return h('div', { className: 'card-node' }, [
       h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign, hasFormulas: formulas.length > 0 }),
@@ -190,11 +195,11 @@
   }
 
   // ---------- Panneau latéral : histogramme empilé des contributions ----------
-  function StackedBarPanel({ sector, sto, year, formulaId }) {
-    const exp = G.expandFormula(formulaId, sector, 'B', sto, year);
+  function StackedBarPanel({ sector, entry, sto, year, formulaId, depth }) {
+    const exp = G.expandFormula(formulaId, sector, entry, sto, year);
     if (!exp) return null;
     const bar = TeeGraphLib.stackedBarGeometry(exp.others, { width: 64, height: 240, pad: 4 });
-    const rootValue = G.getValue(sector, 'B', sto, year);
+    const rootValue = G.getValue(sector, entry, sto, year);
     const f = D.formulas[formulaId];
 
     const rects = bar.segments.map((s, i) =>
@@ -222,8 +227,12 @@
       ])
     );
 
-    return h('div', { className: 'sidebar-panel' }, [
-      h('div', { className: 'sidebar-title', key: 't' }, f ? f.label : formulaId),
+    return h('div', { className: 'sidebar-panel', style: depth ? { marginLeft: Math.min(depth, 4) * 12 + 'px' } : undefined }, [
+      h('div', { className: 'sidebar-title', key: 't' }, [
+        depth ? h('span', { className: 'sidebar-depth-tag', key: 'd' }, '↳ niveau ' + (depth + 1) + ' · ') : null,
+        f ? f.label : formulaId,
+        ' — ' + stoWithEntry(sto, entry) + (sector !== D.seed.sector ? ' (' + sector + ')' : ''),
+      ]),
       h('div', { className: 'stacked-bar-row', key: 'row' }, [
         h('svg', {
           key: 'svg', viewBox: '0 0 ' + bar.width + ' ' + bar.height,
@@ -234,7 +243,7 @@
         h('div', { className: 'stacked-bar-legend', key: 'legend' }, legend),
       ]),
       h('div', { className: 'stacked-bar-total', key: 'total' },
-        stoWithEntry(sto, 'B') + ' = ' + fmtMd(bar.total) +
+        stoWithEntry(sto, entry) + ' = ' + fmtMd(bar.total) +
         (rootValue !== null ? ' (carte : ' + fmtMd(rootValue) + ')' : '')
       ),
       bar.missing > 0
@@ -243,19 +252,34 @@
     ]);
   }
 
-  function Sidebar({ sector, sto, year, rootExpanded }) {
-    const activeIds = Object.keys(rootExpanded).filter(id => rootExpanded[id]);
-    if (activeIds.length === 0) {
+  function Sidebar({ year, expandedTree }) {
+    const items = [];
+    Object.keys(expandedTree).forEach(path => {
+      const node = expandedTree[path];
+      Object.keys(node.active).forEach(formulaId => {
+        if (node.active[formulaId]) {
+          items.push({
+            key: path + '>' + formulaId,
+            sector: node.sector, entry: node.entry, sto: node.sto, depth: node.depth, formulaId,
+          });
+        }
+      });
+    });
+    items.sort((a, b) => a.depth - b.depth);
+    if (items.length === 0) {
       return h('aside', { className: 'sidebar' }, [
         h('div', { className: 'sidebar-panel', key: 'empty' }, [
           h('div', { className: 'sidebar-title', key: 't' }, 'Décomposition'),
           h('div', { className: 'sidebar-empty', key: 'e' },
-            'Dépliez une identité comptable sur la carte de départ pour voir ici la contribution de chaque poste.'),
+            'Dépliez une identité comptable (sur la carte de départ ou sur une de ses cartes dépliées) pour voir ici la contribution de chaque poste. Chaque nouveau niveau de détail ajoute son propre histogramme.'),
         ]),
       ]);
     }
     return h('aside', { className: 'sidebar' },
-      activeIds.map(id => h(StackedBarPanel, { key: id, sector, sto, year, formulaId: id }))
+      items.map(it => h(StackedBarPanel, {
+        key: it.key, sector: it.sector, entry: it.entry, sto: it.sto, year,
+        formulaId: it.formulaId, depth: it.depth,
+      }))
     );
   }
 
@@ -264,8 +288,26 @@
     const sector = D.seed.sector;
     const [sto, setSto] = React.useState(D.seed.sto);
     const [year, setYear] = React.useState(DEFAULT_YEAR);
-    // décompositions actives sur la carte de départ, pour le panneau latéral
-    const [rootExpanded, setRootExpanded] = React.useState({});
+    // arbre complet des décompositions actives, à n'importe quelle
+    // profondeur : { [path]: { sector, entry, sto, depth, active: {formulaId: bool} } }
+    // `path` encode la branche complète (voir FormulaGroup/CardNode), ce qui
+    // permet de refermer toute une sous-branche d'un coup.
+    const [expandedTree, setExpandedTree] = React.useState({});
+
+    function handleToggle(path, info, formulaId) {
+      setExpandedTree(prev => {
+        const next = Object.assign({}, prev);
+        const node = next[path] || { sector: info.sector, entry: info.entry, sto: info.sto, depth: info.depth, active: {} };
+        const willOpen = !node.active[formulaId];
+        next[path] = Object.assign({}, node, { active: Object.assign({}, node.active, { [formulaId]: willOpen }) });
+        if (!willOpen) {
+          // on replie : purge toute la sous-décomposition ouverte en dessous
+          const prefix = path + '>' + formulaId + '>';
+          Object.keys(next).forEach(k => { if (k.indexOf(prefix) === 0) delete next[k]; });
+        }
+        return next;
+      });
+    }
 
     const stoOptions = rootStoOptions(sector);
 
@@ -276,7 +318,7 @@
             'Solde de départ ',
             h('select', {
               value: sto,
-              onChange: (e) => { setSto(e.target.value); setRootExpanded({}); },
+              onChange: (e) => { setSto(e.target.value); setExpandedTree({}); },
             }, stoOptions.map(code => h('option', { key: code, value: code }, code + ' — ' + G.stoLabel(code)))),
           ]),
           h('label', { key: 'l2', className: 'inline-label' }, [
@@ -292,10 +334,10 @@
         h('main', { key: 'main' }, [
           h(CardNode, {
             key: sector + '|B|' + sto, sector, entry: 'B', sto, year, depth: 0,
-            onExpandedChange: setRootExpanded,
+            path: 'root', expandedTree, onToggle: handleToggle,
           }),
         ]),
-        h(Sidebar, { key: 'sidebar', sector, sto, year, rootExpanded }),
+        h(Sidebar, { key: 'sidebar', year, expandedTree }),
       ]),
       h('p', { className: 'footnote', key: 'foot' },
         "Source : INSEE, comptes nationaux annuels (base 2020), série SDMX DD_CNA_TEE. Les identités comptables (data/formules_TEE.csv) sont calculées pour 2024 puis appliquées à toutes les années disponibles ; pour des années anciennes, certains termes peuvent être indisponibles."

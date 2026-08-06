@@ -147,5 +147,96 @@ try {
 assert(!deepRenderError, 'dépliage récursif simulé (profondeur <= ' + MAX_DEPTH + ') sans exception' + (deepRenderError ? ' : ' + deepRenderError.stack : ''));
 console.log('Nœuds visités en dépliage simulé :', deepNodeCount);
 
+// --- Test avec un vrai état simulé (clics successifs) : vérifie que le
+// panneau latéral affiche un histogramme par décomposition active, y compris
+// une sous-décomposition ouverte sur une carte enfant (dépliage plus
+// détaillé), et que refermer la décomposition racine referme aussi en
+// cascade les sous-décompositions qu'elle contenait.
+console.log('\n--- Test du panneau latéral (dépliage réel simulé, y compris sous-décomposition) ---');
+{
+  let curHooks = null, curIdx = 0;
+  function statefulUseState(initial) {
+    const hooks = curHooks;
+    const i = curIdx++;
+    if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial;
+    return [hooks[i], (v) => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }];
+  }
+  const sandbox3 = {
+    console,
+    document: makeFakeDom(),
+    React: { createElement: mockCreateElement, useState: statefulUseState },
+    ReactDOM: { createRoot: () => ({ render: (el) => { sandbox3.__rendered = el; } }) },
+  };
+  sandbox3.window = sandbox3;
+  vm.createContext(sandbox3);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'data', 'tee_graph.js'), 'utf8'), sandbox3);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'graph.js'), 'utf8'), sandbox3);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'app.js'), 'utf8'), sandbox3);
+
+  const hookStores3 = {};
+  function render3(el, pathKey) {
+    if (el === null || el === undefined || typeof el === 'boolean' || typeof el === 'string' || typeof el === 'number') return el;
+    if (Array.isArray(el)) return el.map((e, i) => render3(e, pathKey + '.' + i));
+    if (typeof el !== 'object' || !('type' in el)) return el;
+    const t = el.type;
+    if (typeof t === 'function') {
+      const name = t.displayName || t.name || 'anon';
+      const key = pathKey + '/' + name + (el.props && el.props.key !== undefined ? ':' + el.props.key : '');
+      if (!hookStores3[key]) hookStores3[key] = [];
+      curHooks = hookStores3[key]; curIdx = 0;
+      return { __rendered: render3(t(el.props), key), __el: el };
+    }
+    return { type: t, props: Object.assign({}, el.props, el.props && el.props.children !== undefined ? { children: render3(el.props.children, pathKey + '.c') } : {}) };
+  }
+  function findAll3(node, matchFn, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    if (node.__rendered !== undefined) { findAll3(node.__rendered, matchFn, acc); return acc; }
+    if (Array.isArray(node)) { node.forEach(n => findAll3(n, matchFn, acc)); return acc; }
+    if (matchFn(node)) acc.push(node);
+    if (node.props && node.props.children) findAll3(node.props.children, matchFn, acc);
+    return acc;
+  }
+  const isPanel = n => n.props && n.props.className && n.props.className.indexOf('sidebar-panel') === 0;
+  const isButton = n => n.type === 'button';
+
+  let tree3 = render3(sandbox3.__rendered, 'root3');
+  assert(findAll3(tree3, isPanel).length === 1, 'panneau vide au départ (aucune décomposition active)');
+
+  let btns = findAll3(tree3, isButton);
+  btns[0].props.onClick(); // déplie la 1ère identité de la carte racine
+  tree3 = render3(sandbox3.__rendered, 'root3');
+  assert(findAll3(tree3, isPanel).length === 1, 'un panneau après dépliage de la racine');
+
+  // cherche, parmi les cartes désormais visibles, un bouton d'identité sur
+  // une carte ENFANT (pas la racine elle-même) pour simuler une sous-décomposition
+  btns = findAll3(tree3, isButton);
+  const childBtn = btns.find(b => {
+    const label = (function textOf(n) {
+      if (typeof n === 'string' || typeof n === 'number') return String(n);
+      if (Array.isArray(n)) return n.map(textOf).join('');
+      if (n && n.__rendered !== undefined) return textOf(n.__rendered);
+      if (n && n.props && n.props.children !== undefined) return textOf(n.props.children);
+      return '';
+    })(b.props.children);
+    return label.indexOf('Définition B8G') !== -1;
+  });
+  assert(!!childBtn, 'un bouton de sous-décomposition ("Définition B8G") est visible sur une carte enfant');
+  if (childBtn) {
+    childBtn.props.onClick();
+    tree3 = render3(sandbox3.__rendered, 'root3');
+    const panelsAfterNested = findAll3(tree3, isPanel);
+    assert(panelsAfterNested.length === 2, `deux panneaux après ouverture d'une sous-décomposition (trouvé ${panelsAfterNested.length})`);
+
+    // referme la décomposition racine : la sous-décomposition doit disparaître en cascade
+    btns = findAll3(tree3, isButton);
+    btns[0].props.onClick();
+    tree3 = render3(sandbox3.__rendered, 'root3');
+    const panelsAfterClose = findAll3(tree3, isPanel);
+    assert(panelsAfterClose.length === 1 && panelsAfterClose[0].props.className === 'sidebar-panel',
+      `en refermant la racine, la sous-décomposition disparaît aussi du panneau (cascade) (trouvé ${panelsAfterClose.length} panneau(x))`);
+  }
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

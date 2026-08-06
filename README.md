@@ -46,11 +46,15 @@ vérifier la connexion et recharger la page.
   badge +/- indiquant s'ils s'ajoutent ou se retranchent pour reconstituer
   la valeur de départ, et l'équation correspondante affichée en toutes
   lettres. Chaque nouvelle carte peut à son tour être dépliée.
-- Tant qu'au moins une identité est dépliée sur la carte de départ, un
-  panneau latéral à droite affiche un histogramme empilé divergent (un
-  panneau par identité dépliée) : chaque membre de l'identité apporte sa
-  contribution (positive vers le haut, négative vers le bas) autour d'un
-  zéro central, avec une légende et le total reconstitué en bas.
+- Tant qu'au moins une identité est dépliée (sur la carte de départ ou sur
+  une de ses cartes enfants), un panneau latéral à droite affiche un
+  histogramme empilé divergent par identité active : chaque membre apporte
+  sa contribution, dans sa propre couleur (positive vers le haut, négative
+  vers le bas) autour d'un zéro central, avec une légende et le total
+  reconstitué en bas. Déplier une sous-décomposition sur une carte enfant
+  ajoute son propre panneau, marqué « niveau 2 », etc. ; refermer une
+  identité referme aussi, en cascade, toutes les sous-décompositions
+  ouvertes en dessous.
 
 Les identités comptables proviennent de `data/formules_TEE.csv`, calculées
 par `R/genere_formule_TEE.r` pour l'année 2024 uniquement ; le site applique
