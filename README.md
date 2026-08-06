@@ -21,6 +21,16 @@ Ouvrir `site/index.html` directement dans un navigateur (double-clic). Aucun
 serveur n'est nécessaire : les données sont embarquées dans
 `site/data/tee_data.js`.
 
+La bibliothèque de graphiques (Chart.js) est chargée depuis un CDN au premier
+affichage (avec repli automatique sur 3 CDN différents en cas d'échec) : une
+connexion internet est donc nécessaire à l'ouverture. Si le message « Chart is
+not defined » ou un bandeau d'erreur apparaît, c'est que les 3 CDN étaient
+inaccessibles (pare-feu, absence de connexion) — vérifier la connexion et
+recharger la page. Pour un usage garanti hors-ligne, télécharger
+`chart.umd.min.js` (version 4.4.4) depuis https://www.chartjs.org, le placer
+dans `site/vendor/chart.umd.min.js`, et remplacer dans `site/index.html` le
+tableau d'URLs CDN par `['vendor/chart.umd.min.js']`.
+
 Le site présente, pour le secteur et l'année sélectionnés :
 - la **séquence des comptes** sous forme de cascade (valeur ajoutée brute →
   EBE/revenu mixte → solde des revenus primaires → revenu disponible brut →

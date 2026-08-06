@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Séquence des comptes — Tableau Économique d'Ensemble</title>
 <link rel="stylesheet" href="style.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -76,7 +75,39 @@
 
 <footer>Site généré localement — données INSEE, comptes nationaux annuels.</footer>
 
-<script src="data/tee_data.js"></script>
-<script src="app.js"></script>
+<script>
+// Charge Chart.js depuis plusieurs CDN (avec repli automatique si le premier
+// est inaccessible), puis seulement ensuite les données et l'application.
+// Cela nécessite un accès internet au premier chargement (bibliothèque non
+// embarquée dans le dépôt) ; voir README.md pour la rendre 100% hors-ligne.
+(function loadFirstAvailable(urls, onDone) {
+  if (!urls.length) { onDone(false); return; }
+  var s = document.createElement('script');
+  s.src = urls[0];
+  s.onload = function () { onDone(true); };
+  s.onerror = function () { loadFirstAvailable(urls.slice(1), onDone); };
+  document.head.appendChild(s);
+})([
+  'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js',
+  'https://unpkg.com/chart.js@4.4.4/dist/chart.umd.min.js',
+], function (ok) {
+  if (!ok) {
+    var warn = document.createElement('div');
+    warn.style.cssText = 'background:#3a1e1e;color:#ff6b6b;padding:14px 24px;font:13px sans-serif;border-bottom:1px solid #ff6b6b';
+    warn.textContent = "Impossible de charger la bibliothèque de graphiques (Chart.js) : vérifiez votre connexion internet, nécessaire au premier affichage de cette page.";
+    document.body.prepend(warn);
+    return;
+  }
+  var dataScript = document.createElement('script');
+  dataScript.src = 'data/tee_data.js';
+  dataScript.onload = function () {
+    var appScript = document.createElement('script');
+    appScript.src = 'app.js';
+    document.body.appendChild(appScript);
+  };
+  document.body.appendChild(dataScript);
+});
+</script>
 </body>
 </html>
