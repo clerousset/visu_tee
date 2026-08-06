@@ -177,7 +177,7 @@
           key: f.id,
           className: 'pill' + (active[f.id] ? ' active' : ''),
           onClick: () => onToggle(path, { sector, entry, sto, depth: depth || 0 }, f.id),
-        }, (active[f.id] ? '▾ ' : '▸ ') + f.label + ' (' + f.size + ')')
+        }, (active[f.id] ? '▾ ' : '▸ ') + f.label + ' (' + (f.size - 1) + ')')
       )
     );
 
