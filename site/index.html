@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Séquence des comptes — Tableau Économique d'Ensemble</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header>
+  <h1><span class="dot"></span> Séquence des comptes — TEE</h1>
+  <div class="sub">Comptes nationaux annuels (INSEE) · Tableau Économique d'Ensemble par secteur institutionnel, 1949–2024</div>
+</header>
+
+<div class="controls">
+  <div class="sector-tabs" id="sectorTabs"></div>
+  <div class="year-control">
+    <label for="yearSlider">Année</label>
+    <button id="yearPrev" aria-label="Année précédente">−</button>
+    <input type="range" id="yearSlider">
+    <button id="yearNext" aria-label="Année suivante">+</button>
+    <span class="year-value" id="yearValue"></span>
+  </div>
+</div>
+
+<main>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Séquence des comptes</h2>
+      <div class="headline">Capacité / besoin de financement : <strong id="headlineValue" class="headline-num">—</strong></div>
+    </div>
+    <div class="chart-box tall"><canvas id="waterfallCanvas"></canvas></div>
+    <div class="legend-note">
+      <span><i style="background:var(--total)"></i> Solde (valeur ajoutée / capacité de financement)</span>
+      <span><i style="background:var(--pos)"></i> Compte en hausse</span>
+      <span><i style="background:var(--neg)"></i> Compte en baisse</span>
+    </div>
+    <table class="solde-table" id="soldeTable">
+      <thead><tr><th>Solde</th><th style="text-align:right">Valeur</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Évolution dans le temps</h2>
+      <div class="row-controls">
+        <select id="soldeSelect"></select>
+        <label class="checkbox"><input type="checkbox" id="compareAll"> Comparer tous les secteurs</label>
+      </div>
+    </div>
+    <div class="chart-box"><canvas id="evolutionCanvas"></canvas></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Comparaison sectorielle</h2>
+      <div class="headline">Année <strong id="compYear"></strong></div>
+    </div>
+    <div class="chart-box"><canvas id="comparisonCanvas"></canvas></div>
+  </section>
+
+  <p class="footnote">
+    Source : INSEE, comptes nationaux annuels (base 2020), série SDMX DD_CNA_TEE — valeurs en euros courants,
+    France, non consolidé. Les 6 secteurs suivent la séquence des comptes : compte de production (B1G, valeur
+    ajoutée brute) → compte d'exploitation (B2A3G, EBE + revenu mixte) → compte d'affectation des revenus
+    primaires (B5G) → compte de distribution secondaire du revenu (B6G, revenu disponible brut) → compte
+    d'utilisation du revenu (B8G, épargne brute) → compte de capital (B9, capacité ou besoin de financement).
+    Données préparées par <code>scripts/prepare_data.py</code> à partir de <code>data/DD_CNA_TEE_data.csv</code>.
+  </p>
+
+</main>
+
+<footer>Site généré localement — données INSEE, comptes nationaux annuels.</footer>
+
+<script src="data/tee_data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
