@@ -196,6 +196,15 @@ def load_activite_formulas(tee_values):
     # ordinaire (même valeur, déjà dans tee_values), pas une valeur SUT
     # distincte — seuls les membres enfants (une section NACE chacun)
     # portent une valeur SUT, stockée à part dans activity_values.
+    #
+    # formules_SUT.csv contient un bloc distinct par (secteur,poste,ANNÉE) —
+    # comme pour le TEE, la STRUCTURE de la ventilation (quelles activités la
+    # composent) est invariante par construction des comptes nationaux ; on
+    # regroupe donc tous les blocs validés d'un même poste en UNE SEULE
+    # identité, avec la liste des années où elle est effectivement valide
+    # (`years`) : sinon chaque année validée ajouterait son propre bouton
+    # "Ventilation en activité" en double sur la même carte (getFormulasFor
+    # filtre ensuite sur `years` pour l'année sélectionnée).
     sut_rows = load_sut()
     sut_lookup = {}  # (sector,entry,sto,activity,year) -> value, PRODUCT == "_T" uniquement
     for r in sut_rows:
@@ -210,9 +219,10 @@ def load_activite_formulas(tee_values):
             key = f"{row['formule']}|{row['id_formule']}"
             groups.setdefault(key, []).append(row)
 
-    formulas = {}
+    # (sector,entry,sto) -> { years:set, target_signe:int, activities:{code:signe} }
+    by_sto = {}
     activity_values = {}  # sector -> entry -> sto -> activity -> year -> value
-    for fid, rows in groups.items():
+    for rows in groups.values():
         target_row = next(r for r in rows if r["ACTIVITY"] == "_T")
         sec, entry, sto, year = (
             target_row["REF_SECTOR"], target_row["ACCOUNTING_ENTRY"],
@@ -225,24 +235,37 @@ def load_activite_formulas(tee_values):
         if sut_val is None or abs(sut_val - tee_val) >= 1:
             continue
 
-        members = []
-        target_member = None
+        block = by_sto.setdefault((sec, entry, sto), {
+            "years": set(), "target_signe": int(target_row["signe"]), "activities": {},
+        })
+        block["years"].add(year)
         for row in rows:
             activity = row["ACTIVITY"]
             if activity == "_T":
-                target_member = {"sector": sec, "entry": entry, "sto": sto, "signe": int(row["signe"])}
-                members.append(target_member)
                 continue
+            block["activities"][activity] = int(row["signe"])
             sv = sut_lookup.get((sec, entry, sto, activity, year))
             if sv is None:
                 continue
-            members.append({"sector": sec, "entry": entry, "sto": sto, "activity": activity, "signe": int(row["signe"])})
             by_activity = activity_values.setdefault(sec, {}).setdefault(entry, {}).setdefault(sto, {}).setdefault(activity, {})
             by_activity[year] = sv
 
-        if len(members) < 2:
+    formulas = {}
+    for (sec, entry, sto), block in by_sto.items():
+        if len(block["activities"]) < 2:
             continue
-        formulas[fid] = {"label": target_row["formule"], "target": target_member, "members": members}
+        target_member = {"sector": sec, "entry": entry, "sto": sto, "signe": block["target_signe"]}
+        members = [target_member] + [
+            {"sector": sec, "entry": entry, "sto": sto, "activity": activity, "signe": signe}
+            for activity, signe in sorted(block["activities"].items())
+        ]
+        fid = f"Ventilation en activité|{sec}-{entry}-{sto}"
+        formulas[fid] = {
+            "label": "Ventilation en activité",
+            "target": target_member,
+            "members": members,
+            "years": sorted(block["years"]),
+        }
 
     return formulas, activity_values
 

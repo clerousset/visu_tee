@@ -132,6 +132,19 @@ inchangé) ; `app.js` le fait suivre de bout en bout (`Card`/`CardNode`/
 (`sector|entry|sto@activity`) pour garder chaque branche unique dans
 `expandedTree`.
 
+**Piège déjà rencontré** : `formules_SUT.csv` contient un bloc distinct par
+`(secteur,poste,ANNÉE)` (comme le TEE, `regenerate_formules_sut.py` attribue
+un `id_formule` par bloc de calcul). La STRUCTURE de la ventilation (quelles
+activités) est invariante par construction, donc `load_activite_formulas`
+**fusionne tous les blocs validés d'un même poste en une seule identité**,
+avec un champ `years` (liste des années où elle est valide) — sinon chaque
+année ajoute son propre bouton "Ventilation en activité" en double sur la
+même carte. Cela veut dire que `getFormulasFor` doit filtrer par année :
+signature `getFormulasFor(sector, entry, sto, year, activity)`, et une
+identité avec un champ `years` n'est retenue que si `years` contient
+`String(year)` — les identités TEE classiques n'ont pas ce champ et restent
+toujours proposées, quelle que soit l'année.
+
 ## Workflow attendu
 
 1. Implémenter la demande.

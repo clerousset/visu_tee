@@ -321,11 +321,28 @@ console.log('\n--- Test de la ventilation par activité (SUT) ---');
   tree4 = render4(sandbox4.__rendered, 'root4');
 
   let btns = findAll4(tree4, isButton4);
-  const activiteBtn = btns.find(b => textOf4(b.props.children).indexOf('Ventilation en activité') !== -1);
-  assert(!!activiteBtn, 'la carte D1/S1/2022 propose un bouton "Ventilation en activité"');
+  const activiteBtns = btns.filter(b => textOf4(b.props.children).indexOf('Ventilation en activité') !== -1);
+  assert(activiteBtns.length === 1,
+    `la carte D1/S1/2022 propose exactement un bouton "Ventilation en activité" (trouvé ${activiteBtns.length}) : ` +
+    `formules_SUT.csv contient un bloc par année validée, elles doivent être fusionnées en une seule identité ` +
+    `(sinon une pill en double par année, voir load_activite_formulas)`);
+  // l'identité ne doit être proposée QUE pour les années où TEE/SUT
+  // concordent (1978-2022, pas 2024) : sinon getFormulasFor ne filtre pas
+  // sur `years` et l'équation serait incohérente avec la carte affichée
+  selects = findAll4(tree4, isSelect4);
+  selects[1].props.onChange({ target: { value: '2024' } });
+  let tree4y2024 = render4(sandbox4.__rendered, 'root4');
+  const btns2024 = findAll4(tree4y2024, isButton4);
+  assert(!btns2024.some(b => textOf4(b.props.children).indexOf('Ventilation en activité') !== -1),
+    'le bouton "Ventilation en activité" n’apparaît pas pour 2024 (hors du champ commun TEE/SUT)');
+  selects[1].props.onChange({ target: { value: '2022' } }); // revient à l'année testée
+  tree4 = render4(sandbox4.__rendered, 'root4');
+  btns = findAll4(tree4, isButton4);
+  const activiteBtnFresh = btns.find(b => textOf4(b.props.children).indexOf('Ventilation en activité') !== -1);
+  assert(!!activiteBtnFresh, 'le bouton "Ventilation en activité" réapparaît en revenant à 2022');
 
-  if (activiteBtn) {
-    activiteBtn.props.onClick();
+  if (activiteBtnFresh) {
+    activiteBtnFresh.props.onClick();
     tree4 = render4(sandbox4.__rendered, 'root4');
 
     const badges = findAll4(tree4, n => n.props && n.props.className === 'card-activity-badge');
@@ -344,7 +361,7 @@ console.log('\n--- Test de la ventilation par activité (SUT) ---');
     assert(legendLabels.some(l => /\[[A-U]\]/.test(l)), 'le panneau latéral tague aussi les contributions par activité');
 
     // referme : tout doit disparaître (pas de fuite de cartes ou de panneaux)
-    activiteBtn.props.onClick();
+    activiteBtnFresh.props.onClick();
     tree4 = render4(sandbox4.__rendered, 'root4');
     const badgesAfterClose = findAll4(tree4, n => n.props && n.props.className === 'card-activity-badge');
     assert(badgesAfterClose.length === 0, 'refermer la ventilation par activité fait disparaître toutes les cartes enfants');

@@ -214,7 +214,7 @@
     const value = G.getValue(sector, entry, sto, year, activity);
     // on ne repropose pas la formule qui a généré cette carte (évite un
     // dépliage trivial "vers le parent" juste après avoir déplié celui-ci)
-    const formulas = G.getFormulasFor(sector, entry, sto, activity).filter(f => f.id !== excludeFormulaId);
+    const formulas = G.getFormulasFor(sector, entry, sto, year, activity).filter(f => f.id !== excludeFormulaId);
     const active = (expandedTree[path] && expandedTree[path].active) || {};
 
     const pills = formulas.length === 0 ? null : h(

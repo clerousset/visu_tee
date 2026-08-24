@@ -45,10 +45,19 @@
     }
 
     // formules auxquelles participe le poste (sector,entry,sto[,activity]),
-    // avec un court résumé (libellé + nombre de membres)
-    function getFormulasFor(sector, entry, sto, activity) {
+    // avec un court résumé (libellé + nombre de membres). `year` filtre les
+    // identités qui ne valent que pour certaines années (ex. "Ventilation
+    // en activité", valide seulement où le SUT concorde avec le TEE — voir
+    // prepare_data.py::load_activite_formulas) ; les identités TEE
+    // classiques n'ont pas de champ `years` et restent toujours proposées.
+    function getFormulasFor(sector, entry, sto, year, activity) {
       const ids = D.index[keyOf(sector, entry, sto, activity)] || [];
-      return ids.map(id => ({ id, label: D.formulas[id].label, size: D.formulas[id].members.length }));
+      return ids
+        .filter(id => {
+          const years = D.formulas[id].years;
+          return !years || years.indexOf(String(year)) !== -1;
+        })
+        .map(id => ({ id, label: D.formulas[id].label, size: D.formulas[id].members.length }));
     }
 
     function sameMember(m, sector, entry, sto, activity) {
