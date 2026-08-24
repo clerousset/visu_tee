@@ -48,6 +48,11 @@ vérifier la connexion et recharger la page.
   badge +/- indiquant s'ils s'ajoutent ou se retranchent pour reconstituer
   la valeur de départ, et l'équation correspondante affichée en toutes
   lettres. Chaque nouvelle carte peut à son tour être dépliée.
+- Chaque carte porte un petit bouton « ⌖ » (« repartir d'ici ») : cliquer
+  dessus en fait la nouvelle racine de l'exploration (y compris si elle est
+  dans un autre secteur, atteint via une ventilation par secteur), et
+  abandonne la décomposition en cours pour repartir à zéro depuis cette
+  carte.
 - Tant qu'au moins une identité est dépliée (sur la carte de départ ou sur
   une de ses cartes enfants), un panneau latéral à droite affiche un
   histogramme empilé divergent par identité active : chaque membre apporte

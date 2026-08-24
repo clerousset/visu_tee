@@ -198,19 +198,22 @@ console.log('\n--- Test du panneau latéral (dépliage réel simulé, y compris 
     return acc;
   }
   const isPanel = n => n.props && n.props.className && n.props.className.indexOf('sidebar-panel') === 0;
-  const isButton = n => n.type === 'button';
+  // les boutons "pill" (dépliage d'identité) uniquement : depuis l'ajout du
+  // bouton "repartir d'ici" (⌖) sur chaque carte, btns[0] n'est plus
+  // forcément une pill (le bouton ⌖ est rendu avant les pills dans le DOM)
+  const isPill = n => n.type === 'button' && n.props.className && n.props.className.indexOf('pill') === 0;
 
   let tree3 = render3(sandbox3.__rendered, 'root3');
   assert(findAll3(tree3, isPanel).length === 1, 'panneau vide au départ (aucune décomposition active)');
 
-  let btns = findAll3(tree3, isButton);
+  let btns = findAll3(tree3, isPill);
   btns[0].props.onClick(); // déplie la 1ère identité de la carte racine
   tree3 = render3(sandbox3.__rendered, 'root3');
   assert(findAll3(tree3, isPanel).length === 1, 'un panneau après dépliage de la racine');
 
   // cherche, parmi les cartes désormais visibles, un bouton d'identité sur
   // une carte ENFANT (pas la racine elle-même) pour simuler une sous-décomposition
-  btns = findAll3(tree3, isButton);
+  btns = findAll3(tree3, isPill);
   const childBtn = btns.find(b => {
     const label = (function textOf(n) {
       if (typeof n === 'string' || typeof n === 'number') return String(n);
@@ -230,7 +233,7 @@ console.log('\n--- Test du panneau latéral (dépliage réel simulé, y compris 
       `toujours un seul panneau après ouverture d'une sous-décomposition (trouvé ${panelsAfterNested.length}) : elle enrichit le même graphique`);
 
     // referme la décomposition racine : la sous-décomposition doit disparaître en cascade
-    btns = findAll3(tree3, isButton);
+    btns = findAll3(tree3, isPill);
     btns[0].props.onClick();
     tree3 = render3(sandbox3.__rendered, 'root3');
     const panelsAfterClose = findAll3(tree3, isPanel);
@@ -365,6 +368,99 @@ console.log('\n--- Test de la ventilation par activité (SUT) ---');
     tree4 = render4(sandbox4.__rendered, 'root4');
     const badgesAfterClose = findAll4(tree4, n => n.props && n.props.className === 'card-activity-badge');
     assert(badgesAfterClose.length === 0, 'refermer la ventilation par activité fait disparaître toutes les cartes enfants');
+  }
+}
+
+// --- Test du bouton "repartir d'ici" (⌖) : chaque carte, y compris une
+// carte enfant d'un secteur différent de la graine (S1), doit pouvoir
+// devenir la nouvelle racine — la carte affichée change, le sélecteur
+// "Poste de départ" suit (secteur affiché entre parenthèses si différent de
+// la graine), et toute décomposition en cours est abandonnée (nouveau
+// départ, pas juste une carte ajoutée).
+console.log('\n--- Test du bouton "repartir d\'ici" ---');
+{
+  let curHooks = null, curIdx = 0;
+  function statefulUseState(initial) {
+    const hooks = curHooks;
+    const i = curIdx++;
+    if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial;
+    return [hooks[i], (v) => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }];
+  }
+  const sandbox5 = {
+    console,
+    document: makeFakeDom(),
+    React: { createElement: mockCreateElement, useState: statefulUseState },
+    ReactDOM: { createRoot: () => ({ render: (el) => { sandbox5.__rendered = el; } }) },
+  };
+  sandbox5.window = sandbox5;
+  vm.createContext(sandbox5);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'data', 'tee_graph.js'), 'utf8'), sandbox5);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'graph.js'), 'utf8'), sandbox5);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'app.js'), 'utf8'), sandbox5);
+
+  const hookStores5 = {};
+  function render5(el, pathKey) {
+    if (el === null || el === undefined || typeof el === 'boolean' || typeof el === 'string' || typeof el === 'number') return el;
+    if (Array.isArray(el)) return el.map((e, i) => render5(e, pathKey + '.' + i));
+    if (typeof el !== 'object' || !('type' in el)) return el;
+    const t = el.type;
+    if (typeof t === 'function') {
+      const name = t.displayName || t.name || 'anon';
+      const key = pathKey + '/' + name + (el.props && el.props.key !== undefined ? ':' + el.props.key : '');
+      if (!hookStores5[key]) hookStores5[key] = [];
+      curHooks = hookStores5[key]; curIdx = 0;
+      return { __rendered: render5(t(el.props), key), __el: el };
+    }
+    return { type: t, props: Object.assign({}, el.props, el.props && el.props.children !== undefined ? { children: render5(el.props.children, pathKey + '.c') } : {}) };
+  }
+  function findAll5(node, matchFn, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    if (node.__rendered !== undefined) { findAll5(node.__rendered, matchFn, acc); return acc; }
+    if (Array.isArray(node)) { node.forEach(n => findAll5(n, matchFn, acc)); return acc; }
+    if (matchFn(node)) acc.push(node);
+    if (node.props && node.props.children) findAll5(node.props.children, matchFn, acc);
+    return acc;
+  }
+  function textOf5(n) {
+    if (typeof n === 'string' || typeof n === 'number') return String(n);
+    if (Array.isArray(n)) return n.map(textOf5).join('');
+    if (n && n.__rendered !== undefined) return textOf5(n.__rendered);
+    if (n && n.props && n.props.children !== undefined) return textOf5(n.props.children);
+    return '';
+  }
+  const isPill5 = n => n.type === 'button' && n.props.className && n.props.className.indexOf('pill') === 0;
+  const isRootBtn5 = n => n.type === 'button' && n.props.className === 'card-root-btn';
+  const isCardTop5 = n => n.props && n.props.className === 'card-top';
+
+  let tree5 = render5(sandbox5.__rendered, 'root5');
+  assert(findAll5(tree5, isCardTop5).length === 1, 'une seule carte au départ');
+  assert(findAll5(tree5, isRootBtn5).length === 1, 'la carte racine propose un bouton "repartir d\'ici"');
+
+  // déplie "Ventilation en sous-secteur" pour obtenir des cartes enfants
+  // dans un AUTRE secteur que la graine (S1)
+  const secPill = findAll5(tree5, isPill5).find(b => textOf5(b.props.children).indexOf('Ventilation en sous-secteur') !== -1);
+  assert(!!secPill, 'la racine propose "Ventilation en sous-secteur"');
+  if (secPill) {
+    secPill.props.onClick();
+    tree5 = render5(sandbox5.__rendered, 'root5');
+
+    const rootBtns = findAll5(tree5, isRootBtn5);
+    assert(rootBtns.length > 1, `un bouton "repartir d'ici" par carte visible (trouvé ${rootBtns.length})`);
+
+    // clique le bouton root d'une carte ENFANT (pas la racine, donc pas rootBtns[0])
+    rootBtns[1].props.onClick();
+    tree5 = render5(sandbox5.__rendered, 'root5');
+
+    assert(findAll5(tree5, isCardTop5).length === 1,
+      'une seule carte après "repartir d\'ici" : la décomposition précédente est abandonnée, pas empilée');
+
+    const inlineLabel = textOf5(findAll5(tree5, n => n.props && n.props.className === 'inline-label')[0]);
+    assert(inlineLabel.indexOf('Poste de départ (') === 0,
+      `le sélecteur affiche le secteur de la nouvelle racine (libellé: "${inlineLabel.slice(0, 40)}...")`);
+
+    const activePills = findAll5(tree5, isPill5).filter(p => p.props.className.indexOf('active') !== -1);
+    assert(activePills.length === 0, 'aucune décomposition active après "repartir d\'ici" (nouveau départ propre)');
   }
 }
 

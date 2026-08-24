@@ -105,7 +105,7 @@
   }
 
   // ---------- Carte ----------
-  function Card({ sector, entry, sto, year, value, effectiveSign, hasFormulas, activity }) {
+  function Card({ sector, entry, sto, year, value, effectiveSign, hasFormulas, activity, onSetRoot }) {
     const signClass = value === null ? '' : value >= 0 ? 'pos' : 'neg';
     const meaningText = lowerFirst(G.stoLabel(sto));
     // les valeurs ventilées par activité (SUT) n'ont pas de série annuelle
@@ -126,6 +126,11 @@
         h('span', { className: 'card-sto', key: 'sto' }, sto),
         activity ? h('span', { className: 'card-activity-badge', key: 'act', title: G.activityLabel(activity) }, activity) : null,
         h('span', { className: 'card-entry-badge entry-' + entry, key: 'entry' }, G.entryLabel(entry)),
+        h('button', {
+          className: 'card-root-btn', key: 'root',
+          title: 'Repartir d’ici : nouvelle décomposition à partir de cette carte',
+          onClick: () => onSetRoot({ sector, entry, sto, activity }),
+        }, '⌖'),
       ]),
       sentence,
     ];
@@ -161,7 +166,7 @@
   // dépliage (ex. "root>F12>S11|D|D7") ; les cartes enfants héritent d'un
   // chemin qui préfixe le leur, ce qui permet à handleToggle() de retrouver
   // et refermer toute une branche d'un coup (voir plus bas).
-  function FormulaGroup({ sector, entry, sto, year, formulaId, depth, path, expandedTree, onToggle, activity }) {
+  function FormulaGroup({ sector, entry, sto, year, formulaId, depth, path, expandedTree, onToggle, activity, onSetRoot }) {
     const exp = G.expandFormula(formulaId, sector, entry, sto, year, activity);
     if (!exp) return null;
     // chaque terme est une bulle explicative individuelle (title) : le code
@@ -199,6 +204,7 @@
             path: path + '>' + formulaId + '>' + m.sector + '|' + m.entry + '|' + m.sto + (m.activity ? '@' + m.activity : ''),
             expandedTree,
             onToggle,
+            onSetRoot,
           })
         )
       ),
@@ -210,7 +216,7 @@
   // App (expandedTree), pas en useState local : ainsi, replier une identité
   // referme automatiquement (et proprement, dans le panneau latéral) toutes
   // les sous-décompositions ouvertes en dessous, sans état local à nettoyer.
-  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, path, expandedTree, onToggle, activity }) {
+  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, path, expandedTree, onToggle, activity, onSetRoot }) {
     const value = G.getValue(sector, entry, sto, year, activity);
     // on ne repropose pas la formule qui a généré cette carte (évite un
     // dépliage trivial "vers le parent" juste après avoir déplié celui-ci)
@@ -236,11 +242,11 @@
     const groups = Object.keys(active)
       .filter(id => active[id])
       .map(id => h(FormulaGroup, {
-        key: id, sector, entry, sto, year, activity, formulaId: id, depth: depth || 0, path, expandedTree, onToggle,
+        key: id, sector, entry, sto, year, activity, formulaId: id, depth: depth || 0, path, expandedTree, onToggle, onSetRoot,
       }));
 
     return h('div', { className: 'card-node' }, [
-      h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign, hasFormulas: formulas.length > 0, activity }),
+      h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign, hasFormulas: formulas.length > 0, activity, onSetRoot }),
       pills,
       groups.length ? h('div', { className: 'groups-stack', key: 'groups' }, groups) : null,
     ]);
@@ -373,9 +379,14 @@
 
   // ---------- Application ----------
   function App() {
-    const sector = D.seed.sector;
+    // la racine était jusque-là toujours dans le secteur de la graine (S1) :
+    // rootSector devient un état pour que "repartir d'ici" (bouton sur
+    // chaque carte) puisse re-raciner sur une carte d'un AUTRE secteur
+    // (rencontrée en dépliant une ventilation par secteur, par exemple)
+    const [rootSector, setRootSector] = React.useState(D.seed.sector);
     const [rootEntry, setRootEntry] = React.useState(D.seed.entry);
     const [sto, setSto] = React.useState(D.seed.sto);
+    const [rootActivity, setRootActivity] = React.useState(undefined);
     const [year, setYear] = React.useState(DEFAULT_YEAR);
     // arbre complet des décompositions actives, à n'importe quelle
     // profondeur : { [path]: { sector, entry, sto, depth, active: {formulaId: bool} } }
@@ -398,18 +409,29 @@
       });
     }
 
-    const stoOptions = rootStoOptions(sector);
+    // "repartir d'ici" (bouton sur chaque carte, y compris la racine elle-
+    // même) : la carte cliquée devient la nouvelle racine et toute
+    // décomposition en cours est abandonnée, comme un nouveau départ
+    function handleSetRoot({ sector, entry, sto: newSto, activity }) {
+      setRootSector(sector);
+      setRootEntry(entry);
+      setSto(newSto);
+      setRootActivity(activity || undefined);
+      setExpandedTree({});
+    }
+
+    const stoOptions = rootStoOptions(rootSector);
 
     return h('div', { className: 'app-wrap' }, [
       h('div', { className: 'controls', key: 'controls' }, [
         h('div', { className: 'row-controls', key: 'row' }, [
           h('label', { key: 'l1', className: 'inline-label' }, [
-            'Poste de départ ',
+            'Poste de départ' + (rootSector !== D.seed.sector ? ' (' + G.sectorLabel(rootSector) + ')' : '') + ' ',
             h('select', {
               value: rootEntry + '|' + sto,
               onChange: (e) => {
                 const [entry, code] = e.target.value.split('|');
-                setRootEntry(entry); setSto(code); setExpandedTree({});
+                setRootEntry(entry); setSto(code); setRootActivity(undefined); setExpandedTree({});
               },
             }, stoOptions.map(o => h('option', { key: o.entry + '|' + o.sto, value: o.entry + '|' + o.sto },
               o.sto + ' — ' + lowerFirst(G.stoLabel(o.sto)) + ' (' + lowerFirst(G.entryLabel(o.entry)) + ')'))),
@@ -426,11 +448,12 @@
       h('div', { className: 'layout', key: 'layout' }, [
         h('main', { key: 'main' }, [
           h(CardNode, {
-            key: sector + '|' + rootEntry + '|' + sto, sector, entry: rootEntry, sto, year, depth: 0,
-            path: 'root', expandedTree, onToggle: handleToggle,
+            key: rootSector + '|' + rootEntry + '|' + sto + (rootActivity ? '@' + rootActivity : ''),
+            sector: rootSector, entry: rootEntry, sto, activity: rootActivity, year, depth: 0,
+            path: 'root', expandedTree, onToggle: handleToggle, onSetRoot: handleSetRoot,
           }),
         ]),
-        h(Sidebar, { key: 'sidebar', sector, entry: rootEntry, sto, year, expandedTree }),
+        h(Sidebar, { key: 'sidebar', sector: rootSector, entry: rootEntry, sto, year, expandedTree }),
       ]),
       h('p', { className: 'footnote', key: 'foot' },
         "Source : INSEE, comptes nationaux annuels (base 2020), série SDMX DD_CNA_TEE. Les identités comptables (data/formules_TEE.csv) sont calculées pour 2024 puis appliquées à toutes les années disponibles ; pour des années anciennes, certains termes peuvent être indisponibles."
