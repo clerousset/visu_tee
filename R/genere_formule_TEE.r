@@ -59,7 +59,7 @@ b2g = df %>%
    mutate(signe = if_else(STO == "B1G", 1, -1)) %>%
    group_by(REF_SECTOR) %>% 
    #summarise(ok = sum(signe * OBS_VALUE))
-  mutate(formule = "Définition ERE", id_formule = cur_group_id()) %>% ungroup() %>%
+  mutate(formule = "Lien valeur ajoutée/excédent brut d'exploitation", id_formule = cur_group_id()) %>% ungroup() %>%
    select(-OBS_VALUE)
 
 #B5G = B2G + B3G - D4_D + D4_C + D1_C + D2_C + D3_C
@@ -69,7 +69,7 @@ b5g = df %>%
    mutate(signe = if_else(STO == "B5G" |  ACCOUNTING_ENTRY == 'D', 1, -1)) %>%
    group_by(REF_SECTOR) %>% 
   # summarise(ok = sum(signe * OBS_VALUE))
-  mutate(formule = "Définition B5G", id_formule = cur_group_id()) %>% ungroup() %>%
+  mutate(formule = "Lien solde des revenus primaires/excédent brut d'exploitation", id_formule = cur_group_id()) %>% ungroup() %>%
    select(-OBS_VALUE)
 
 #B6G = B5G - D6_D -D7_D + D6_C + D7_D

@@ -162,7 +162,7 @@ def build_ebe(df):
         "REF_SECTOR": r["REF_SECTOR"], "TIME_PERIOD": r["TIME_PERIOD"],
         "ACCOUNTING_ENTRY": r["ACCOUNTING_ENTRY"], "STO": r["STO"],
         "signe": 1 if r["STO"] == "B1G" else -1,
-        "formule": "Définition ERE",
+        "formule": "Lien valeur ajoutée/excédent brut d'exploitation",
         "id_formule": get_id(r["REF_SECTOR"]),
     } for r in rows]
 
@@ -193,7 +193,7 @@ def build_b5g(df):
         "REF_SECTOR": r["REF_SECTOR"], "TIME_PERIOD": r["TIME_PERIOD"],
         "ACCOUNTING_ENTRY": r["ACCOUNTING_ENTRY"], "STO": r["STO"],
         "signe": 1 if (r["STO"] == "B5G" or r["ACCOUNTING_ENTRY"] == "D") else -1,
-        "formule": "Définition B5G",
+        "formule": "Lien solde des revenus primaires/excédent brut d'exploitation",
         "id_formule": get_id(r["REF_SECTOR"]),
     } for r in rows]
 
