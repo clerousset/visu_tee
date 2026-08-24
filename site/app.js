@@ -99,12 +99,11 @@
     const meaningText = lowerFirst(G.stoLabel(sto));
 
     const sentence = h('p', { className: 'card-sentence', key: 'sentence' }, [
-      'Les ',
       h('strong', { className: 'card-value ' + signClass, key: 'val' }, fmtMd(value)),
       ' ',
       h(SeriesHover, { key: 'series', sector, entry, sto, year }),
       ' de ' + meaningText + ' de ' + year,
-      ' pour ' + sectorPhrase(sector) + (hasFormulas ? ' peuvent se décomposer :' : '.'),
+      ' pour ' + sectorPhrase(sector) + '.' + (hasFormulas ? ' Ils peuvent se décomposer :' : ''),
     ]);
 
     const children = [
@@ -194,17 +193,55 @@
     ]);
   }
 
-  // ---------- Panneau latéral : histogramme empilé des contributions ----------
-  function StackedBarPanel({ sector, entry, sto, year, formulaId, depth }) {
-    const exp = G.expandFormula(formulaId, sector, entry, sto, year);
-    if (!exp) return null;
-    const bar = TeeGraphLib.stackedBarGeometry(exp.others, { width: 64, height: 240, pad: 4 });
+  // ---------- Panneau latéral : un seul histogramme empilé ----------
+  // Au lieu d'un panneau par identité dépliée, on aplatit tout l'arbre de
+  // dépliage en une seule liste de contributions "feuilles" (les postes
+  // affichés sans décomposition active), chacune pondérée par le produit
+  // des signes effectifs le long de son chemin depuis la carte de départ.
+  // Ainsi, déplier une nouvelle identité ne fait que remplacer, dans le même
+  // graphique, la contribution du poste concerné par ses propres membres.
+  // Si plusieurs identités alternatives sont ouvertes sur un même poste, on
+  // n'en retient qu'une (la première) pour garder un seul graphe cohérent.
+  function collectLeaves(sector, entry, sto, year, path, expandedTree, effectiveSign, depth) {
+    const node = expandedTree[path];
+    const activeIds = node ? Object.keys(node.active).filter(id => node.active[id]) : [];
+    if (activeIds.length === 0) {
+      return [{ sector, entry, sto, effectiveSign, value: G.getValue(sector, entry, sto, year), depth }];
+    }
+    const exp = G.expandFormula(activeIds[0], sector, entry, sto, year);
+    if (!exp) {
+      return [{ sector, entry, sto, effectiveSign, value: G.getValue(sector, entry, sto, year), depth }];
+    }
+    const childPrefix = path + '>' + activeIds[0] + '>';
+    const leaves = [];
+    exp.others.forEach(m => {
+      const childPath = childPrefix + m.sector + '|' + m.entry + '|' + m.sto;
+      leaves.push(...collectLeaves(
+        m.sector, m.entry, m.sto, year, childPath, expandedTree,
+        effectiveSign * m.effectiveSign, depth + 1
+      ));
+    });
+    return leaves;
+  }
+
+  function Sidebar({ sector, entry, sto, year, expandedTree }) {
+    const leaves = collectLeaves(sector, entry, sto, year, 'root', expandedTree, 1, 0);
+    if (leaves.length <= 1) {
+      return h('aside', { className: 'sidebar' }, [
+        h('div', { className: 'sidebar-panel', key: 'empty' }, [
+          h('div', { className: 'sidebar-title', key: 't' }, 'Décomposition'),
+          h('div', { className: 'sidebar-empty', key: 'e' },
+            'Dépliez une identité comptable (sur la carte de départ ou sur une de ses cartes dépliées) pour voir ici la contribution de chaque poste. Chaque nouveau niveau de détail vient enrichir ce même graphique.'),
+        ]),
+      ]);
+    }
+
     const rootValue = G.getValue(sector, entry, sto, year);
-    const f = D.formulas[formulaId];
+    const bar = TeeGraphLib.stackedBarGeometry(leaves, { width: 64, height: 320, pad: 4 });
 
     const rects = bar.segments.map((s, i) =>
       h('rect', {
-        key: s.sector + '|' + s.entry + '|' + s.sto,
+        key: i,
         x: 0,
         width: bar.width,
         y: Math.min(s.y0, s.y1),
@@ -219,7 +256,7 @@
     );
 
     const legend = bar.segments.map((s, i) =>
-      h('div', { className: 'legend-item', key: s.sector + '|' + s.entry + '|' + s.sto }, [
+      h('div', { className: 'legend-item', key: i }, [
         h('span', { className: 'legend-swatch', key: 'sw', style: { background: colorForIndex(i) } }),
         h('span', { className: 'legend-label', key: 'lb' },
           stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '')),
@@ -227,60 +264,28 @@
       ])
     );
 
-    return h('div', { className: 'sidebar-panel', style: depth ? { marginLeft: Math.min(depth, 4) * 12 + 'px' } : undefined }, [
-      h('div', { className: 'sidebar-title', key: 't' }, [
-        depth ? h('span', { className: 'sidebar-depth-tag', key: 'd' }, '↳ niveau ' + (depth + 1) + ' · ') : null,
-        f ? f.label : formulaId,
-        ' — ' + stoWithEntry(sto, entry) + (sector !== D.seed.sector ? ' (' + sector + ')' : ''),
-      ]),
-      h('div', { className: 'stacked-bar-row', key: 'row' }, [
-        h('svg', {
-          key: 'svg', viewBox: '0 0 ' + bar.width + ' ' + bar.height,
-          width: bar.width, height: bar.height, className: 'stacked-bar-svg',
-        }, [
-          h('line', { key: 'zero', x1: 0, x2: bar.width, y1: bar.zeroY, y2: bar.zeroY, className: 'stack-zero' }),
-        ].concat(rects)),
-        h('div', { className: 'stacked-bar-legend', key: 'legend' }, legend),
-      ]),
-      h('div', { className: 'stacked-bar-total', key: 'total' },
-        stoWithEntry(sto, entry) + ' = ' + fmtMd(bar.total) +
-        (rootValue !== null ? ' (carte : ' + fmtMd(rootValue) + ')' : '')
-      ),
-      bar.missing > 0
-        ? h('div', { className: 'stacked-bar-note', key: 'note' }, bar.missing + ' terme(s) indisponible(s) pour ' + year)
-        : null,
-    ]);
-  }
-
-  function Sidebar({ year, expandedTree }) {
-    const items = [];
-    Object.keys(expandedTree).forEach(path => {
-      const node = expandedTree[path];
-      Object.keys(node.active).forEach(formulaId => {
-        if (node.active[formulaId]) {
-          items.push({
-            key: path + '>' + formulaId,
-            sector: node.sector, entry: node.entry, sto: node.sto, depth: node.depth, formulaId,
-          });
-        }
-      });
-    });
-    items.sort((a, b) => a.depth - b.depth);
-    if (items.length === 0) {
-      return h('aside', { className: 'sidebar' }, [
-        h('div', { className: 'sidebar-panel', key: 'empty' }, [
-          h('div', { className: 'sidebar-title', key: 't' }, 'Décomposition'),
-          h('div', { className: 'sidebar-empty', key: 'e' },
-            'Dépliez une identité comptable (sur la carte de départ ou sur une de ses cartes dépliées) pour voir ici la contribution de chaque poste. Chaque nouveau niveau de détail ajoute son propre histogramme.'),
+    return h('aside', { className: 'sidebar' }, [
+      h('div', { className: 'sidebar-panel', key: 'panel' }, [
+        h('div', { className: 'sidebar-title', key: 't' },
+          'Décomposition de ' + stoWithEntry(sto, entry) + (sector !== D.seed.sector ? ' (' + sector + ')' : '')),
+        h('div', { className: 'stacked-bar-row', key: 'row' }, [
+          h('svg', {
+            key: 'svg', viewBox: '0 0 ' + bar.width + ' ' + bar.height,
+            width: bar.width, height: bar.height, className: 'stacked-bar-svg',
+          }, [
+            h('line', { key: 'zero', x1: 0, x2: bar.width, y1: bar.zeroY, y2: bar.zeroY, className: 'stack-zero' }),
+          ].concat(rects)),
+          h('div', { className: 'stacked-bar-legend', key: 'legend' }, legend),
         ]),
-      ]);
-    }
-    return h('aside', { className: 'sidebar' },
-      items.map(it => h(StackedBarPanel, {
-        key: it.key, sector: it.sector, entry: it.entry, sto: it.sto, year,
-        formulaId: it.formulaId, depth: it.depth,
-      }))
-    );
+        h('div', { className: 'stacked-bar-total', key: 'total' },
+          stoWithEntry(sto, entry) + ' = ' + fmtMd(bar.total) +
+          (rootValue !== null ? ' (carte : ' + fmtMd(rootValue) + ')' : '')
+        ),
+        bar.missing > 0
+          ? h('div', { className: 'stacked-bar-note', key: 'note' }, bar.missing + ' terme(s) indisponible(s) pour ' + year)
+          : null,
+      ]),
+    ]);
   }
 
   // ---------- Application ----------
@@ -337,7 +342,7 @@
             path: 'root', expandedTree, onToggle: handleToggle,
           }),
         ]),
-        h(Sidebar, { key: 'sidebar', year, expandedTree }),
+        h(Sidebar, { key: 'sidebar', sector, entry: 'B', sto, year, expandedTree }),
       ]),
       h('p', { className: 'footnote', key: 'foot' },
         "Source : INSEE, comptes nationaux annuels (base 2020), série SDMX DD_CNA_TEE. Les identités comptables (data/formules_TEE.csv) sont calculées pour 2024 puis appliquées à toutes les années disponibles ; pour des années anciennes, certains termes peuvent être indisponibles."

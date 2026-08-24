@@ -149,7 +149,7 @@ def build_ss_ventil(df):
     return out
 
 
-def build_ere(df):
+def build_ebe(df):
     # B1G = B2G + B3G + D1_D + D2_D + D3_D  (signe : B1G=+1, tout le reste -1)
     rows = [r for r in df if r["STO"] in {"B1G", "B2G", "B3G", "D1", "D2", "D3"} and r["ACCOUNTING_ENTRY"] in ("B", "D")]
     get_id = new_id_sequence()
@@ -198,7 +198,7 @@ def main():
 
     ss_secteur = build_ss_secteur(df)
     ss_ventil = build_ss_ventil(df)
-    b2g = build_ere(df)
+    b2g = build_ebe(df)
     b5g = build_b5g(df)
     b6g = build_signe_target_or_D(df, {"B6G", "B5G", "D6", "D7"}, "B6G", "Définition B6G")
     b8g = build_signe_target_or_D(df, {"B8G", "B6G", "P3", "D8"}, "B8G", "Définition B8G")

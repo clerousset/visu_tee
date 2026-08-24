@@ -145,9 +145,8 @@ main {
 .stacked-bar-svg { flex-shrink: 0; }
 .stack-seg { stroke: var(--panel); stroke-width: 0.5; }
 .stack-zero {
-  stroke: var(--border);
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
+  stroke: var(--text);
+  stroke-width: 2;
 }
 .stacked-bar-legend {
   display: flex;
