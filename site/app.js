@@ -124,6 +124,23 @@
     return h('div', { className: 'card' }, children);
   }
 
+  // libellé complet d'un terme (poste + secteur si différent de la carte
+  // d'origine), utilisé comme bulle explicative au survol d'un terme abrégé
+  function termFullLabel(m, sector) {
+    const label = lowerFirst(G.stoLabel(m.sto));
+    return m.sector !== sector ? label + ' pour ' + sectorPhrase(m.sector) : label;
+  }
+
+  // équation en toutes lettres (libellés complets, pas les codes STO), pour
+  // la bulle affichée au survol d'un bouton de dépliage, avant même de cliquer
+  function formulaPreviewText(exp, sector, sto, entry) {
+    const parts = exp.others.map(m => {
+      const sign = m.effectiveSign > 0 ? '+' : '−';
+      return sign + ' ' + termFullLabel(m, sector);
+    });
+    return lowerFirst(G.stoLabel(sto)) + ' = ' + parts.join(' ');
+  }
+
   // ---------- Groupe de formule déplié (équation + cartes enfants) ----------
   // `path` identifie de façon unique la carte parente dans l'arbre de
   // dépliage (ex. "root>F12>S11|D|D7") ; les cartes enfants héritent d'un
@@ -132,13 +149,22 @@
   function FormulaGroup({ sector, entry, sto, year, formulaId, depth, path, expandedTree, onToggle }) {
     const exp = G.expandFormula(formulaId, sector, entry, sto, year);
     if (!exp) return null;
-    const eqParts = exp.others.map(m => {
+    // chaque terme est une bulle explicative individuelle (title) : le code
+    // abrégé (ex. "D9R_C") reste affiché, mais survoler révèle son libellé complet
+    const eqNodes = [
+      h('span', { key: 'lhs', className: 'formula-eq-term', title: lowerFirst(G.stoLabel(sto)) }, stoWithEntry(sto, entry)),
+      ' = ',
+    ];
+    exp.others.forEach((m, i) => {
+      if (i > 0) eqNodes.push(' ');
       const sign = m.effectiveSign > 0 ? '+' : '−';
       const sectorTag = m.sector !== sector ? ' (' + m.sector + ')' : '';
-      return sign + ' ' + stoWithEntry(m.sto, m.entry) + sectorTag;
+      eqNodes.push(h('span', {
+        key: i, className: 'formula-eq-term', title: termFullLabel(m, sector),
+      }, sign + ' ' + stoWithEntry(m.sto, m.entry) + sectorTag));
     });
     return h('div', { className: 'formula-group' }, [
-      h('div', { className: 'formula-eq', key: 'eq' }, stoWithEntry(sto, entry) + ' = ' + eqParts.join(' ')),
+      h('div', { className: 'formula-eq', key: 'eq' }, eqNodes),
       h('div', { className: 'formula-children', key: 'ch' },
         exp.others.map(m =>
           h(CardNode, {
@@ -173,13 +199,18 @@
 
     const pills = formulas.length === 0 ? null : h(
       'div', { className: 'expand-row' },
-      formulas.map(f =>
-        h('button', {
+      formulas.map(f => {
+        // bulle explicative : l'équation en toutes lettres, visible avant
+        // même de cliquer sur le bouton pour déplier l'identité
+        const exp = G.expandFormula(f.id, sector, entry, sto, year);
+        const preview = exp ? formulaPreviewText(exp, sector, sto, entry) : undefined;
+        return h('button', {
           key: f.id,
           className: 'pill' + (active[f.id] ? ' active' : ''),
+          title: preview,
           onClick: () => onToggle(path, { sector, entry, sto, depth: depth || 0 }, f.id),
-        }, (active[f.id] ? '▾ ' : '▸ ') + f.label + ' (' + (f.size - 1) + ')')
-      )
+        }, (active[f.id] ? '▾ ' : '▸ ') + f.label + ' (' + (f.size - 1) + ')');
+      })
     );
 
     const groups = Object.keys(active)
