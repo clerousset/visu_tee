@@ -56,9 +56,18 @@
   };
   function sectorPhrase(sector) { return SECTOR_PHRASE[sector] || lowerFirst(G.sectorLabel(sector)); }
 
+  // postes proposés dans le sélecteur de départ : pas seulement les soldes
+  // (B), aussi les ressources/emplois (C/D) — groupés par position, dans
+  // l'ordre où on les rencontre en lisant un compte (solde, puis ressources,
+  // puis emplois)
+  const ROOT_ENTRY_ORDER = ['B', 'C', 'D'];
   function rootStoOptions(sector) {
-    const bySto = (D.values[sector] || {}).B || {};
-    return Object.keys(bySto).sort();
+    const bySector = D.values[sector] || {};
+    const options = [];
+    ROOT_ENTRY_ORDER.forEach(entry => {
+      Object.keys(bySector[entry] || {}).sort().forEach(sto => options.push({ entry, sto }));
+    });
+    return options;
   }
 
   // ---------- Icône + mini-graphique au survol (série annuelle complète) ----------
@@ -353,6 +362,7 @@
   // ---------- Application ----------
   function App() {
     const sector = D.seed.sector;
+    const [rootEntry, setRootEntry] = React.useState(D.seed.entry);
     const [sto, setSto] = React.useState(D.seed.sto);
     const [year, setYear] = React.useState(DEFAULT_YEAR);
     // arbre complet des décompositions actives, à n'importe quelle
@@ -382,11 +392,15 @@
       h('div', { className: 'controls', key: 'controls' }, [
         h('div', { className: 'row-controls', key: 'row' }, [
           h('label', { key: 'l1', className: 'inline-label' }, [
-            'Solde de départ ',
+            'Poste de départ ',
             h('select', {
-              value: sto,
-              onChange: (e) => { setSto(e.target.value); setExpandedTree({}); },
-            }, stoOptions.map(code => h('option', { key: code, value: code }, code + ' — ' + G.stoLabel(code)))),
+              value: rootEntry + '|' + sto,
+              onChange: (e) => {
+                const [entry, code] = e.target.value.split('|');
+                setRootEntry(entry); setSto(code); setExpandedTree({});
+              },
+            }, stoOptions.map(o => h('option', { key: o.entry + '|' + o.sto, value: o.entry + '|' + o.sto },
+              o.sto + ' — ' + lowerFirst(G.stoLabel(o.sto)) + ' (' + lowerFirst(G.entryLabel(o.entry)) + ')'))),
           ]),
           h('label', { key: 'l2', className: 'inline-label' }, [
             'Année ',
@@ -400,11 +414,11 @@
       h('div', { className: 'layout', key: 'layout' }, [
         h('main', { key: 'main' }, [
           h(CardNode, {
-            key: sector + '|B|' + sto, sector, entry: 'B', sto, year, depth: 0,
+            key: sector + '|' + rootEntry + '|' + sto, sector, entry: rootEntry, sto, year, depth: 0,
             path: 'root', expandedTree, onToggle: handleToggle,
           }),
         ]),
-        h(Sidebar, { key: 'sidebar', sector, entry: 'B', sto, year, expandedTree }),
+        h(Sidebar, { key: 'sidebar', sector, entry: rootEntry, sto, year, expandedTree }),
       ]),
       h('p', { className: 'footnote', key: 'foot' },
         "Source : INSEE, comptes nationaux annuels (base 2020), série SDMX DD_CNA_TEE. Les identités comptables (data/formules_TEE.csv) sont calculées pour 2024 puis appliquées à toutes les années disponibles ; pour des années anciennes, certains termes peuvent être indisponibles."
