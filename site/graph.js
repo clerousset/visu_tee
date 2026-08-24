@@ -1,10 +1,22 @@
 // Logique pure (sans DOM) d'exploration du graphe de valeurs du TEE.
 // Séparée de app.js pour rester testable directement avec Node (tests/test_graph.js).
 (function (root) {
-  function keyOf(sector, entry, sto) { return sector + '|' + entry + '|' + sto; }
+  // `activity` est une dimension optionnelle (ventilation par activité
+  // économique du SUT, voir "Ventilation en activité") : absente/null pour
+  // un poste TEE ordinaire, elle distingue alors "D1" (poste TEE normal) de
+  // "D1 pour l'activité A" (une valeur différente, propre au SUT).
+  function keyOf(sector, entry, sto, activity) {
+    return sector + '|' + entry + '|' + sto + (activity ? '@' + activity : '');
+  }
 
   function makeGraph(D) {
-    function getValue(sector, entry, sto, year) {
+    function getValue(sector, entry, sto, year, activity) {
+      if (activity) {
+        const v = ((((D.activityValues || {})[sector] || {})[entry] || {})[sto] || {})[activity];
+        if (!v) return null;
+        const val = v[String(year)];
+        return val === undefined ? null : val;
+      }
       const v = ((D.values[sector] || {})[entry] || {})[sto];
       if (!v) return null;
       const val = v[String(year)];
@@ -14,6 +26,7 @@
     function stoLabel(sto) { return D.labelsSto[sto] || sto; }
     function sectorLabel(sector) { return D.labelsSecteur[sector] || sector; }
     function entryLabel(entry) { return D.labelsEntry[entry] || entry; }
+    function activityLabel(activity) { return (D.labelsActivity || {})[activity] || activity; }
 
     function availableYears(sector, entry, sto) {
       const v = ((D.values[sector] || {})[entry] || {})[sto];
@@ -31,33 +44,41 @@
         .sort((a, b) => a.year - b.year);
     }
 
-    // formules auxquelles participe le poste (sector,entry,sto), avec un
-    // court résumé (libellé + nombre de membres)
-    function getFormulasFor(sector, entry, sto) {
-      const ids = D.index[keyOf(sector, entry, sto)] || [];
+    // formules auxquelles participe le poste (sector,entry,sto[,activity]),
+    // avec un court résumé (libellé + nombre de membres)
+    function getFormulasFor(sector, entry, sto, activity) {
+      const ids = D.index[keyOf(sector, entry, sto, activity)] || [];
       return ids.map(id => ({ id, label: D.formulas[id].label, size: D.formulas[id].members.length }));
+    }
+
+    function sameMember(m, sector, entry, sto, activity) {
+      return m.sector === sector && m.entry === entry && m.sto === sto
+        && (m.activity || null) === (activity || null);
     }
 
     // Calcule, pour une formule donnée et un poste d'origine (qui doit être
     // membre de cette formule), les autres membres avec leur "signe effectif"
     // relatif à l'origine : origin = Σ effectiveSign_j * value_j
-    function expandFormula(id, originSector, originEntry, originSto, year) {
+    // `originActivity` distingue le poste TEE ordinaire (undefined/null) de
+    // sa ventilation par activité du SUT (voir "Ventilation en activité") :
+    // les membres d'une telle formule partagent tous le même (sector,entry,
+    // sto), seule l'activité les distingue.
+    function expandFormula(id, originSector, originEntry, originSto, year, originActivity) {
       const f = D.formulas[id];
       if (!f) return null;
-      const originMember = f.members.find(
-        m => m.sector === originSector && m.entry === originEntry && m.sto === originSto
-      );
+      const originMember = f.members.find(m => sameMember(m, originSector, originEntry, originSto, originActivity));
       if (!originMember) return null;
       const originSigne = originMember.signe;
       const others = f.members
-        .filter(m => !(m.sector === originSector && m.entry === originEntry && m.sto === originSto))
+        .filter(m => !sameMember(m, originSector, originEntry, originSto, originActivity))
         .map(m => ({
           sector: m.sector,
           entry: m.entry,
           sto: m.sto,
+          activity: m.activity || null,
           signe: m.signe,
           effectiveSign: -originSigne * m.signe,
-          value: getValue(m.sector, m.entry, m.sto, year),
+          value: getValue(m.sector, m.entry, m.sto, year, m.activity),
         }));
       // les soldes (position "B") passent toujours en premier à l'affichage
       // (tri stable : l'ordre relatif du reste, tel que dans formules_TEE.csv,
@@ -72,7 +93,7 @@
       const f = D.formulas[id];
       let sum = 0;
       for (const m of f.members) {
-        const v = getValue(m.sector, m.entry, m.sto, year);
+        const v = getValue(m.sector, m.entry, m.sto, year, m.activity);
         if (v === null) return null;
         sum += m.signe * v;
       }
@@ -81,7 +102,7 @@
 
     return {
       data: D,
-      keyOf, getValue, stoLabel, sectorLabel, entryLabel, availableYears, series,
+      keyOf, getValue, stoLabel, sectorLabel, entryLabel, activityLabel, availableYears, series,
       getFormulasFor, expandFormula, checkIdentity,
     };
   }

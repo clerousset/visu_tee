@@ -105,21 +105,26 @@
   }
 
   // ---------- Carte ----------
-  function Card({ sector, entry, sto, year, value, effectiveSign, hasFormulas }) {
+  function Card({ sector, entry, sto, year, value, effectiveSign, hasFormulas, activity }) {
     const signClass = value === null ? '' : value >= 0 ? 'pos' : 'neg';
     const meaningText = lowerFirst(G.stoLabel(sto));
+    // les valeurs ventilées par activité (SUT) n'ont pas de série annuelle
+    // embarquée sous cette forme : pas de mini-graphique pour ces cartes
+    const seriesHover = activity ? null : h(SeriesHover, { key: 'series', sector, entry, sto, year });
+    const activityPhrase = activity ? ', dans l’activité ' + lowerFirst(G.activityLabel(activity)) : '';
 
     const sentence = h('p', { className: 'card-sentence', key: 'sentence' }, [
       h('strong', { className: 'card-value ' + signClass, key: 'val' }, fmtMd(value)),
       ' ',
-      h(SeriesHover, { key: 'series', sector, entry, sto, year }),
+      seriesHover,
       ' de ' + meaningText + ' de ' + year,
-      ' pour ' + sectorPhrase(sector) + '.' + (hasFormulas ? ' Ils peuvent se décomposer :' : ''),
+      ' pour ' + sectorPhrase(sector) + activityPhrase + '.' + (hasFormulas ? ' Ils peuvent se décomposer :' : ''),
     ]);
 
     const children = [
       h('div', { className: 'card-top', key: 'top' }, [
         h('span', { className: 'card-sto', key: 'sto' }, sto),
+        activity ? h('span', { className: 'card-activity-badge', key: 'act', title: G.activityLabel(activity) }, activity) : null,
         h('span', { className: 'card-entry-badge entry-' + entry, key: 'entry' }, G.entryLabel(entry)),
       ]),
       sentence,
@@ -137,7 +142,8 @@
   // d'origine), utilisé comme bulle explicative au survol d'un terme abrégé
   function termFullLabel(m, sector) {
     const label = lowerFirst(G.stoLabel(m.sto));
-    return m.sector !== sector ? label + ' pour ' + sectorPhrase(m.sector) : label;
+    const withSector = m.sector !== sector ? label + ' pour ' + sectorPhrase(m.sector) : label;
+    return m.activity ? withSector + ' — ' + lowerFirst(G.activityLabel(m.activity)) : withSector;
   }
 
   // équation en toutes lettres (libellés complets, pas les codes STO), pour
@@ -155,37 +161,42 @@
   // dépliage (ex. "root>F12>S11|D|D7") ; les cartes enfants héritent d'un
   // chemin qui préfixe le leur, ce qui permet à handleToggle() de retrouver
   // et refermer toute une branche d'un coup (voir plus bas).
-  function FormulaGroup({ sector, entry, sto, year, formulaId, depth, path, expandedTree, onToggle }) {
-    const exp = G.expandFormula(formulaId, sector, entry, sto, year);
+  function FormulaGroup({ sector, entry, sto, year, formulaId, depth, path, expandedTree, onToggle, activity }) {
+    const exp = G.expandFormula(formulaId, sector, entry, sto, year, activity);
     if (!exp) return null;
     // chaque terme est une bulle explicative individuelle (title) : le code
     // abrégé (ex. "D9R_C") reste affiché, mais survoler révèle son libellé complet
     const eqNodes = [
-      h('span', { key: 'lhs', className: 'formula-eq-term', title: lowerFirst(G.stoLabel(sto)) }, stoWithEntry(sto, entry)),
+      h('span', {
+        key: 'lhs', className: 'formula-eq-term',
+        title: lowerFirst(G.stoLabel(sto)) + (activity ? ' — ' + lowerFirst(G.activityLabel(activity)) : ''),
+      }, stoWithEntry(sto, entry) + (activity ? ' [' + activity + ']' : '')),
       ' = ',
     ];
     exp.others.forEach((m, i) => {
       if (i > 0) eqNodes.push(' ');
       const sign = m.effectiveSign > 0 ? '+' : '−';
       const sectorTag = m.sector !== sector ? ' (' + m.sector + ')' : '';
+      const activityTag = m.activity ? ' [' + m.activity + ']' : '';
       eqNodes.push(h('span', {
         key: i, className: 'formula-eq-term', title: termFullLabel(m, sector),
-      }, sign + ' ' + stoWithEntry(m.sto, m.entry) + sectorTag));
+      }, sign + ' ' + stoWithEntry(m.sto, m.entry) + sectorTag + activityTag));
     });
     return h('div', { className: 'formula-group' }, [
       h('div', { className: 'formula-eq', key: 'eq' }, eqNodes),
       h('div', { className: 'formula-children', key: 'ch' },
         exp.others.map(m =>
           h(CardNode, {
-            key: m.sector + '|' + m.entry + '|' + m.sto,
+            key: m.sector + '|' + m.entry + '|' + m.sto + (m.activity ? '@' + m.activity : ''),
             sector: m.sector,
             entry: m.entry,
             sto: m.sto,
+            activity: m.activity || undefined,
             year,
             effectiveSign: m.effectiveSign,
             depth: depth + 1,
             excludeFormulaId: formulaId,
-            path: path + '>' + formulaId + '>' + m.sector + '|' + m.entry + '|' + m.sto,
+            path: path + '>' + formulaId + '>' + m.sector + '|' + m.entry + '|' + m.sto + (m.activity ? '@' + m.activity : ''),
             expandedTree,
             onToggle,
           })
@@ -199,11 +210,11 @@
   // App (expandedTree), pas en useState local : ainsi, replier une identité
   // referme automatiquement (et proprement, dans le panneau latéral) toutes
   // les sous-décompositions ouvertes en dessous, sans état local à nettoyer.
-  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, path, expandedTree, onToggle }) {
-    const value = G.getValue(sector, entry, sto, year);
+  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, path, expandedTree, onToggle, activity }) {
+    const value = G.getValue(sector, entry, sto, year, activity);
     // on ne repropose pas la formule qui a généré cette carte (évite un
     // dépliage trivial "vers le parent" juste après avoir déplié celui-ci)
-    const formulas = G.getFormulasFor(sector, entry, sto).filter(f => f.id !== excludeFormulaId);
+    const formulas = G.getFormulasFor(sector, entry, sto, activity).filter(f => f.id !== excludeFormulaId);
     const active = (expandedTree[path] && expandedTree[path].active) || {};
 
     const pills = formulas.length === 0 ? null : h(
@@ -211,13 +222,13 @@
       formulas.map(f => {
         // bulle explicative : l'équation en toutes lettres, visible avant
         // même de cliquer sur le bouton pour déplier l'identité
-        const exp = G.expandFormula(f.id, sector, entry, sto, year);
+        const exp = G.expandFormula(f.id, sector, entry, sto, year, activity);
         const preview = exp ? formulaPreviewText(exp, sector, sto, entry) : undefined;
         return h('button', {
           key: f.id,
           className: 'pill' + (active[f.id] ? ' active' : ''),
           title: preview,
-          onClick: () => onToggle(path, { sector, entry, sto, depth: depth || 0 }, f.id),
+          onClick: () => onToggle(path, { sector, entry, sto, activity, depth: depth || 0 }, f.id),
         }, (active[f.id] ? '▾ ' : '▸ ') + f.label + ' (' + (f.size - 1) + ')');
       })
     );
@@ -225,11 +236,11 @@
     const groups = Object.keys(active)
       .filter(id => active[id])
       .map(id => h(FormulaGroup, {
-        key: id, sector, entry, sto, year, formulaId: id, depth: depth || 0, path, expandedTree, onToggle,
+        key: id, sector, entry, sto, year, activity, formulaId: id, depth: depth || 0, path, expandedTree, onToggle,
       }));
 
     return h('div', { className: 'card-node' }, [
-      h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign, hasFormulas: formulas.length > 0 }),
+      h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign, hasFormulas: formulas.length > 0, activity }),
       pills,
       groups.length ? h('div', { className: 'groups-stack', key: 'groups' }, groups) : null,
     ]);
@@ -244,23 +255,23 @@
   // graphique, la contribution du poste concerné par ses propres membres.
   // Si plusieurs identités alternatives sont ouvertes sur un même poste, on
   // n'en retient qu'une (la première) pour garder un seul graphe cohérent.
-  function collectLeaves(sector, entry, sto, year, path, expandedTree, effectiveSign, depth) {
+  function collectLeaves(sector, entry, sto, year, path, expandedTree, effectiveSign, depth, activity) {
     const active = (expandedTree[path] && expandedTree[path].active) || {};
     const activeIds = Object.keys(active).filter(id => active[id]);
     if (activeIds.length === 0) {
-      return [{ sector, entry, sto, effectiveSign, value: G.getValue(sector, entry, sto, year), depth }];
+      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity), depth }];
     }
-    const exp = G.expandFormula(activeIds[0], sector, entry, sto, year);
+    const exp = G.expandFormula(activeIds[0], sector, entry, sto, year, activity);
     if (!exp) {
-      return [{ sector, entry, sto, effectiveSign, value: G.getValue(sector, entry, sto, year), depth }];
+      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity), depth }];
     }
     const childPrefix = path + '>' + activeIds[0] + '>';
     const leaves = [];
     exp.others.forEach(m => {
-      const childPath = childPrefix + m.sector + '|' + m.entry + '|' + m.sto;
+      const childPath = childPrefix + m.sector + '|' + m.entry + '|' + m.sto + (m.activity ? '@' + m.activity : '');
       leaves.push(...collectLeaves(
         m.sector, m.entry, m.sto, year, childPath, expandedTree,
-        effectiveSign * m.effectiveSign, depth + 1
+        effectiveSign * m.effectiveSign, depth + 1, m.activity
       ));
     });
     return leaves;
@@ -288,7 +299,8 @@
 
   function segmentLabel(s, sector) {
     if (s.isOther) return 'Autres (' + s.otherCount + ' poste' + (s.otherCount > 1 ? 's' : '') + ')';
-    return stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '');
+    const base = stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '');
+    return s.activity ? base + ' [' + s.activity + ']' : base;
   }
 
   function Sidebar({ sector, entry, sto, year, expandedTree }) {
@@ -374,7 +386,7 @@
     function handleToggle(path, info, formulaId) {
       setExpandedTree(prev => {
         const next = Object.assign({}, prev);
-        const node = next[path] || { sector: info.sector, entry: info.entry, sto: info.sto, depth: info.depth, active: {} };
+        const node = next[path] || { sector: info.sector, entry: info.entry, sto: info.sto, activity: info.activity, depth: info.depth, active: {} };
         const willOpen = !node.active[formulaId];
         next[path] = Object.assign({}, node, { active: Object.assign({}, node.active, { [formulaId]: willOpen }) });
         if (!willOpen) {

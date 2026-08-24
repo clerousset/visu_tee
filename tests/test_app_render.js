@@ -239,5 +239,117 @@ console.log('\n--- Test du panneau latéral (dépliage réel simulé, y compris 
   }
 }
 
+// --- Test de la ventilation par activité (SUT) : le sélecteur de départ
+// permet maintenant de choisir n'importe quel poste (pas seulement les
+// soldes), et un poste qui a une ventilation par activité validée (accord
+// TEE/SUT, voir prepare_data.py::load_activite_formulas) doit proposer un
+// bouton "Ventilation en activité" ; le déplier doit faire apparaître une
+// carte par section NACE, avec badge d'activité et valeur cohérente avec
+// G.getValue(..., activity), et le panneau latéral doit refléter ces
+// contributions taguées ; refermer doit tout nettoyer proprement.
+console.log('\n--- Test de la ventilation par activité (SUT) ---');
+{
+  let curHooks = null, curIdx = 0;
+  function statefulUseState(initial) {
+    const hooks = curHooks;
+    const i = curIdx++;
+    if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial;
+    return [hooks[i], (v) => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }];
+  }
+  const sandbox4 = {
+    console,
+    document: makeFakeDom(),
+    React: { createElement: mockCreateElement, useState: statefulUseState },
+    ReactDOM: { createRoot: () => ({ render: (el) => { sandbox4.__rendered = el; } }) },
+  };
+  sandbox4.window = sandbox4;
+  vm.createContext(sandbox4);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'data', 'tee_graph.js'), 'utf8'), sandbox4);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'graph.js'), 'utf8'), sandbox4);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'app.js'), 'utf8'), sandbox4);
+  const G4 = vm.runInContext('TeeGraphLib', sandbox4).makeGraph(vm.runInContext('TEE_GRAPH', sandbox4));
+
+  const hookStores4 = {};
+  function render4(el, pathKey) {
+    if (el === null || el === undefined || typeof el === 'boolean' || typeof el === 'string' || typeof el === 'number') return el;
+    if (Array.isArray(el)) return el.map((e, i) => render4(e, pathKey + '.' + i));
+    if (typeof el !== 'object' || !('type' in el)) return el;
+    const t = el.type;
+    if (typeof t === 'function') {
+      const name = t.displayName || t.name || 'anon';
+      const key = pathKey + '/' + name + (el.props && el.props.key !== undefined ? ':' + el.props.key : '');
+      if (!hookStores4[key]) hookStores4[key] = [];
+      curHooks = hookStores4[key]; curIdx = 0;
+      return { __rendered: render4(t(el.props), key), __el: el };
+    }
+    return { type: t, props: Object.assign({}, el.props, el.props && el.props.children !== undefined ? { children: render4(el.props.children, pathKey + '.c') } : {}) };
+  }
+  function findAll4(node, matchFn, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    if (node.__rendered !== undefined) { findAll4(node.__rendered, matchFn, acc); return acc; }
+    if (Array.isArray(node)) { node.forEach(n => findAll4(n, matchFn, acc)); return acc; }
+    if (matchFn(node)) acc.push(node);
+    if (node.props && node.props.children) findAll4(node.props.children, matchFn, acc);
+    return acc;
+  }
+  function textOf4(n) {
+    if (typeof n === 'string' || typeof n === 'number') return String(n);
+    if (Array.isArray(n)) return n.map(textOf4).join('');
+    if (n && n.__rendered !== undefined) return textOf4(n.__rendered);
+    if (n && n.props && n.props.children !== undefined) return textOf4(n.props.children);
+    return '';
+  }
+  const isSelect4 = n => n.type === 'select';
+  const isButton4 = n => n.type === 'button';
+
+  let tree4 = render4(sandbox4.__rendered, 'root4');
+
+  // année 2022 : les identités "Ventilation en activité" ne couvrent pas
+  // 2023/2024 (hors du champ commun disponible TEE/SUT)
+  let selects = findAll4(tree4, isSelect4);
+  selects[1].props.onChange({ target: { value: '2022' } });
+  tree4 = render4(sandbox4.__rendered, 'root4');
+
+  // D1 (rémunération des salariés, emploi) comme poste de départ : possible
+  // depuis que le sélecteur propose aussi les ressources/emplois, pas
+  // seulement les soldes
+  selects = findAll4(tree4, isSelect4);
+  const d1Option = selects[0].props.children.find(o => o.props.value === 'D|D1');
+  assert(!!d1Option, 'D1 (emploi) est proposé dans le sélecteur de poste de départ');
+  selects[0].props.onChange({ target: { value: d1Option.props.value } });
+  tree4 = render4(sandbox4.__rendered, 'root4');
+
+  let btns = findAll4(tree4, isButton4);
+  const activiteBtn = btns.find(b => textOf4(b.props.children).indexOf('Ventilation en activité') !== -1);
+  assert(!!activiteBtn, 'la carte D1/S1/2022 propose un bouton "Ventilation en activité"');
+
+  if (activiteBtn) {
+    activiteBtn.props.onClick();
+    tree4 = render4(sandbox4.__rendered, 'root4');
+
+    const badges = findAll4(tree4, n => n.props && n.props.className === 'card-activity-badge');
+    assert(badges.length >= 15, `au moins 15 sections NACE dépliées comme cartes (trouvé ${badges.length})`);
+
+    const codeA = badges.find(b => textOf4(b.props.children) === 'A');
+    assert(!!codeA, 'la section A (agriculture) est présente parmi les cartes dépliées');
+
+    const expected = G4.getValue('S1', 'D', 'D1', '2022', 'A');
+    assert(expected !== null, 'G.getValue avec activity renvoie une valeur pour D1/S1/2022/A');
+
+    const eqDiv = findAll4(tree4, n => n.props && n.props.className === 'formula-eq')[0];
+    assert(textOf4(eqDiv).indexOf('[A]') !== -1, 'l’équation affichée tague les termes par activité (ex. "[A]")');
+
+    const legendLabels = findAll4(tree4, n => n.props && n.props.className === 'legend-label').map(textOf4);
+    assert(legendLabels.some(l => /\[[A-U]\]/.test(l)), 'le panneau latéral tague aussi les contributions par activité');
+
+    // referme : tout doit disparaître (pas de fuite de cartes ou de panneaux)
+    activiteBtn.props.onClick();
+    tree4 = render4(sandbox4.__rendered, 'root4');
+    const badgesAfterClose = findAll4(tree4, n => n.props && n.props.className === 'card-activity-badge');
+    assert(badgesAfterClose.length === 0, 'refermer la ventilation par activité fait disparaître toutes les cartes enfants');
+  }
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

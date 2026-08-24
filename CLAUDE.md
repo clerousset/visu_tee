@@ -102,6 +102,36 @@ suites avant de committer.
   formule) et un autre membre M (signe `s_M`), le signe effectif relatif à
   K est `effectiveSign = -s_K * s_M`, et `V_K = Σ effectiveSign(M) * V_M`.
 
+## Ventilation par activité (SUT)
+
+Second pipeline de données, greffé sur le premier : `data/DD_CNA_SUT_data.csv`
+(Tableau des ressources et emplois, dimensions ACTIVITY x PRODUCT en plus de
+REF_SECTOR/ACCOUNTING_ENTRY/STO) permet de décomposer certains postes par
+section NACE Rev.2 (A à U) — `scripts/regenerate_formules_sut.py` détecte
+cette identité (ACTIVITY == "_T" = Σ des sections) et écrit
+`data/formules_SUT.csv`. `prepare_data.py::load_activite_formulas` ne
+retient une identité que si le total SUT concorde avec la valeur TEE du même
+poste à la même année (écart < 1) — sinon l'équation affichée serait
+incohérente avec la carte qu'elle prétend décomposer (les deux sources ne
+sont pas toujours au même millésime). En pratique : économie totale (S1) et
+produit agrégé (`_T`) uniquement, sur 8 postes (P1, P2, B1G, D1, D11, P51C,
+P52, B2A3N), années 1978-2022 (pas 2023/2024 : hors du champ commun).
+
+Représentation dans le graphe : le membre "cible" (ACTIVITY == "_T") d'une
+telle formule n'a **pas** d'`activity` propre — c'est le poste TEE ordinaire
+(même valeur, déjà dans `values`), pas une valeur SUT distincte. Seuls les
+membres "feuille" (une section NACE chacun) portent `activity`, avec leur
+valeur dans un arbre séparé `activityValues[sector][entry][sto][activity][year]`
+(jamais dans `values`). Ces membres-feuille ne sont **volontairement pas
+indexés** (`D.index`) : sinon une carte "D1 pour l'activité A" se
+re-proposerait elle-même la même ventilation. `graph.js` (`keyOf`,
+`getValue`, `getFormulasFor`, `expandFormula`) prend un paramètre `activity`
+optionnel partout, backward-compatible (`undefined` = comportement TEE
+inchangé) ; `app.js` le fait suivre de bout en bout (`Card`/`CardNode`/
+`FormulaGroup`/`collectLeaves`), y compris dans l'encodage de `path`
+(`sector|entry|sto@activity`) pour garder chaque branche unique dans
+`expandedTree`.
+
 ## Workflow attendu
 
 1. Implémenter la demande.

@@ -64,6 +64,14 @@ ces mêmes identités (year-invariantes par construction des comptes
 nationaux) à toutes les années disponibles. Pour des années anciennes,
 certains postes détaillés peuvent être indisponibles.
 
+- Pour quelques postes (production, valeur ajoutée, rémunération des
+  salariés, FBCF, ...) de l'économie totale, un bouton supplémentaire
+  « Ventilation en activité » déplie le poste par section d'activité NACE
+  Rev.2 (agriculture, industrie, construction, ...), à partir du Tableau des
+  ressources et emplois (SUT). Ce bouton n'apparaît que pour les années où
+  le total du SUT concorde avec la valeur du TEE (les deux sources ne sont
+  pas toujours au même millésime) — en pratique 1978–2022.
+
 ## Régénérer les données
 
 Si `data/DD_CNA_TEE_data.csv` est mis à jour (nouvel export INSEE) :
@@ -90,6 +98,15 @@ python3 scripts/prepare_data.py          # puis régénère le site à partir du
 doit être répercutée manuellement dans ce fichier. Si le script R est
 modifié différemment de ce que ce portage reproduit, il vaut mieux régénérer
 `formules_TEE.csv` directement avec R et ignorer `regenerate_formules.py`.
+
+Si `data/DD_CNA_SUT_data.csv` est mis à jour, régénérer aussi
+`data/formules_SUT.csv` (identité de ventilation par activité) avant
+`prepare_data.py` :
+
+```
+python3 scripts/regenerate_formules_sut.py   # écrit data/formules_SUT.csv
+python3 scripts/prepare_data.py
+```
 
 ## Tests
 

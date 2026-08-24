@@ -44,6 +44,16 @@ def load_metadata():
     return labels
 
 
+def load_metadata_activite():
+    labels = {}
+    with open(f"{DATA_DIR}/DD_CNA_SUT_metadata.csv", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["COD_VAR"] == "ACTIVITY":
+                labels[row["COD_MOD"]] = row["LIB_MOD"]
+    return labels
+
+
 def load_formulas():
     # id_formule est ré-attribué à partir de 1 indépendamment pour chaque
     # bloc de calcul du script R (cur_group_id() par bloc) : il n'est donc
@@ -162,6 +172,81 @@ def load_sut(src_csv=None):
     return rows
 
 
+def activite_target_keys():
+    # (sector,entry,sto) des cibles de "Ventilation en activité" (le membre
+    # ACTIVITY == "_T" de chaque bloc), pour s'assurer que load_values() les
+    # couvre même si aucune formule TEE ne les référence par ailleurs.
+    keys = set()
+    with open(f"{DATA_DIR}/formules_SUT.csv", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=",", quotechar='"')
+        for row in reader:
+            if row["ACTIVITY"] == "_T":
+                keys.add((row["REF_SECTOR"], row["ACCOUNTING_ENTRY"], row["STO"]))
+    return keys
+
+
+def load_activite_formulas(tee_values):
+    # Ventilation par activité (SUT, voir scripts/regenerate_formules_sut.py) :
+    # n'est proposée dans l'UI que pour les (secteur, position, poste, année)
+    # où le total du SUT (ACTIVITY == "_T") concorde avec la valeur TEE du
+    # même poste à la même année (écart < 1) — les deux sources ne sont pas
+    # toujours au même millésime, et l'équation affichée serait sinon
+    # incohérente avec la valeur de la carte TEE qu'on prétend décomposer.
+    # Le membre cible n'a pas d'"activity" propre : c'est le poste TEE
+    # ordinaire (même valeur, déjà dans tee_values), pas une valeur SUT
+    # distincte — seuls les membres enfants (une section NACE chacun)
+    # portent une valeur SUT, stockée à part dans activity_values.
+    sut_rows = load_sut()
+    sut_lookup = {}  # (sector,entry,sto,activity,year) -> value, PRODUCT == "_T" uniquement
+    for r in sut_rows:
+        if r["PRODUCT"] != "_T":
+            continue
+        sut_lookup[(r["REF_SECTOR"], r["ACCOUNTING_ENTRY"], r["STO"], r["ACTIVITY"], r["TIME_PERIOD"])] = r["OBS_VALUE"]
+
+    groups = {}
+    with open(f"{DATA_DIR}/formules_SUT.csv", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=",", quotechar='"')
+        for row in reader:
+            key = f"{row['formule']}|{row['id_formule']}"
+            groups.setdefault(key, []).append(row)
+
+    formulas = {}
+    activity_values = {}  # sector -> entry -> sto -> activity -> year -> value
+    for fid, rows in groups.items():
+        target_row = next(r for r in rows if r["ACTIVITY"] == "_T")
+        sec, entry, sto, year = (
+            target_row["REF_SECTOR"], target_row["ACCOUNTING_ENTRY"],
+            target_row["STO"], target_row["TIME_PERIOD"],
+        )
+        tee_val = (((tee_values.get(sec) or {}).get(entry) or {}).get(sto) or {}).get(year)
+        if tee_val is None:
+            continue
+        sut_val = sut_lookup.get((sec, entry, sto, "_T", year))
+        if sut_val is None or abs(sut_val - tee_val) >= 1:
+            continue
+
+        members = []
+        target_member = None
+        for row in rows:
+            activity = row["ACTIVITY"]
+            if activity == "_T":
+                target_member = {"sector": sec, "entry": entry, "sto": sto, "signe": int(row["signe"])}
+                members.append(target_member)
+                continue
+            sv = sut_lookup.get((sec, entry, sto, activity, year))
+            if sv is None:
+                continue
+            members.append({"sector": sec, "entry": entry, "sto": sto, "activity": activity, "signe": int(row["signe"])})
+            by_activity = activity_values.setdefault(sec, {}).setdefault(entry, {}).setdefault(sto, {}).setdefault(activity, {})
+            by_activity[year] = sv
+
+        if len(members) < 2:
+            continue
+        formulas[fid] = {"label": target_row["formule"], "target": target_member, "members": members}
+
+    return formulas, activity_values
+
+
 def main():
     src_data = sys.argv[1] if len(sys.argv) > 1 else f"{DATA_DIR}/DD_CNA_TEE_data.csv"
     labels = load_metadata()
@@ -199,8 +284,25 @@ def main():
     # s'assurer que la valeur de départ (graine) est bien couverte même si
     # elle n'appartenait à aucune formule (par prudence)
     needed_keys.add((SEED["sector"], SEED["entry"], SEED["sto"]))
+    # de même pour les cibles de "Ventilation en activité" (voir plus bas) :
+    # doivent être couvertes par values même si aucune formule TEE ne les
+    # référence par ailleurs, pour que le test d'accord TEE/SUT soit possible
+    needed_keys |= activite_target_keys()
 
     values = load_values(src_data, needed_keys)
+
+    # ventilation par activité (SUT) : n'ajoute une identité que pour les
+    # (secteur, poste, année) où elle concorde avec la valeur TEE (voir
+    # load_activite_formulas) ; les membres "feuille" (une activité chacun)
+    # ne sont volontairement pas indexés, pour ne pas se re-proposer eux-mêmes
+    activite_formulas, activity_values = load_activite_formulas(values)
+    for fid, g in activite_formulas.items():
+        formulas[fid] = g
+        for m in g["members"]:
+            if m.get("activity"):
+                continue
+            idxkey = f"{m['sector']}|{m['entry']}|{m['sto']}"
+            index.setdefault(idxkey, []).append(fid)
 
     payload = {
         "unit": "Millions d'euros courants",
@@ -209,9 +311,11 @@ def main():
         "labelsSecteur": {s: labels["REF_SECTOR"].get(s, s) for s in SECTEURS},
         "labelsSto": labels["STO"],
         "labelsEntry": labels["ACCOUNTING_ENTRY"],
+        "labelsActivity": load_metadata_activite(),
         "formulas": formulas,
         "index": index,
         "values": values,
+        "activityValues": activity_values,
     }
 
     os.makedirs("site/data", exist_ok=True)
@@ -223,7 +327,9 @@ def main():
 
     n_keys = len(needed_keys)
     n_formulas = len(formulas)
-    print(f"OK — {OUT_PATH} généré : {n_formulas} identités comptables, {n_keys} postes (secteur x poste x position) suivis.")
+    n_activite = len(activite_formulas)
+    print(f"OK — {OUT_PATH} généré : {n_formulas} identités comptables "
+          f"(dont {n_activite} ventilations par activité), {n_keys} postes (secteur x poste x position) suivis.")
 
 
 if __name__ == "__main__":
