@@ -219,9 +219,9 @@ console.log('\n--- Test du panneau latéral (dépliage réel simulé, y compris 
       if (n && n.props && n.props.children !== undefined) return textOf(n.props.children);
       return '';
     })(b.props.children);
-    return label.indexOf('Définition B8G') !== -1;
+    return label.indexOf('Lien solde revenus primaires/épargne') !== -1;
   });
-  assert(!!childBtn, 'un bouton de sous-décomposition ("Définition B8G") est visible sur une carte enfant');
+  assert(!!childBtn, 'un bouton de sous-décomposition ("Lien solde revenus primaires/épargne", ex-"Définition B8G") est visible sur une carte enfant');
   if (childBtn) {
     childBtn.props.onClick();
     tree3 = render3(sandbox3.__rendered, 'root3');

@@ -79,7 +79,7 @@ b6g = df %>%
    mutate(signe = if_else(STO == "B6G" |  ACCOUNTING_ENTRY == 'D', 1, -1)) %>%
    group_by(REF_SECTOR) %>% 
    #summarise(ok = sum(signe * OBS_VALUE))
-  mutate(formule = "Définition B6G", id_formule = cur_group_id()) %>% ungroup() %>%
+  mutate(formule = "Lien revenu disponible/solde revenus primaires", id_formule = cur_group_id()) %>% ungroup() %>%
    select(-OBS_VALUE)
 
  #  B8G = B6G - P3 -D8_D + D8_C
@@ -89,7 +89,7 @@ b8g = df %>%
    mutate(signe = if_else(STO == "B8G" |  ACCOUNTING_ENTRY == 'D', 1, -1)) %>%
    group_by(REF_SECTOR) %>% 
   # summarise(ok = sum(signe * OBS_VALUE))
-  mutate(formule = "Définition B8G", id_formule = cur_group_id()) %>% ungroup() %>%
+  mutate(formule = "Lien solde revenus primaires/épargne", id_formule = cur_group_id()) %>% ungroup() %>%
    select(-OBS_VALUE)   
 
  #  B9 = B8G - P5 - D9_D + D9_C -NP
@@ -99,7 +99,7 @@ b8g = df %>%
    mutate(signe = if_else(STO == "B9" |  ACCOUNTING_ENTRY == 'D', 1, -1)) %>%
    group_by(REF_SECTOR) %>% 
    #summarise(ok = sum(signe * OBS_VALUE))
-   mutate(formule = "Lien B9 B8", id_formule = cur_group_id()) %>% ungroup() %>%
+   mutate(formule = "Lien épargne/capacité ou besoin de financement", id_formule = cur_group_id()) %>% ungroup() %>%
    select(-OBS_VALUE)     
 
 rbind(b9g, b8g, b6g, b5g, b2g, ss_ventil, ss_secteur) %>%

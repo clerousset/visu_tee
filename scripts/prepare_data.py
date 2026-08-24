@@ -63,22 +63,14 @@ def load_formulas():
     return groups
 
 
-def is_definition_label(label):
-    # "Lien B9 B8" est une identité de définition comme les autres (elle
-    # relie B9 à B8G + ses composantes), simplement nommée différemment
-    # dans le script R.
-    return label.startswith("Définition") or label == "Lien B9 B8"
-
-
 def detect_target(fid, group, labels):
+    # la cible ne se déduit PAS du libellé de la formule (texte affiché,
+    # librement renommable) mais de la structure de ses membres : pour une
+    # ventilation, un critère explicite ; sinon (définitions de solde,
+    # "Lien ..."), la cible est le membre "B" (position solde) qui
+    # correspond à un poste de la liste de priorité, s'il y en a un.
     label = group["label"]
     members = group["members"]
-    if is_definition_label(label):
-        by_sto = {m["sto"]: m for m in members if m["entry"] == "B"}
-        for candidate in DEFINITION_TARGET_PRIORITY:
-            if candidate in by_sto:
-                return by_sto[candidate]
-        return members[0]
     if label == "Ventilation en sous-secteur":
         for m in members:
             if m["sector"] == "S1":
@@ -86,6 +78,10 @@ def detect_target(fid, group, labels):
         return members[0]
     if label == "Ventilation en sous-catégorie":
         return min(members, key=lambda m: len(m["sto"]))
+    by_sto = {m["sto"]: m for m in members if m["entry"] == "B"}
+    for candidate in DEFINITION_TARGET_PRIORITY:
+        if candidate in by_sto:
+            return by_sto[candidate]
     return members[0]
 
 

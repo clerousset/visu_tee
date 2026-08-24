@@ -1,100 +1,100 @@
 "REF_SECTOR","TIME_PERIOD","ACCOUNTING_ENTRY","STO","signe","formule","id_formule"
-"S11",2024,"B","B9",1,"Lien B9 B8",1
-"S12",2024,"B","B9",1,"Lien B9 B8",2
-"S1",2024,"B","B9",1,"Lien B9 B8",3
-"S13",2024,"B","B9",1,"Lien B9 B8",4
-"S14",2024,"B","B9",1,"Lien B9 B8",5
-"S15",2024,"B","B9",1,"Lien B9 B8",6
-"S1",2024,"D","P5",1,"Lien B9 B8",3
-"S14",2024,"C","D9P",-1,"Lien B9 B8",5
-"S14",2024,"C","D9R",-1,"Lien B9 B8",5
-"S14",2024,"B","B8G",-1,"Lien B9 B8",5
-"S15",2024,"D","P5",1,"Lien B9 B8",6
-"S14",2024,"D","P5",1,"Lien B9 B8",5
-"S13",2024,"D","P5",1,"Lien B9 B8",4
-"S11",2024,"D","P5",1,"Lien B9 B8",1
-"S12",2024,"D","P5",1,"Lien B9 B8",2
-"S13",2024,"D","NP",1,"Lien B9 B8",4
-"S11",2024,"D","NP",1,"Lien B9 B8",1
-"S12",2024,"D","NP",1,"Lien B9 B8",2
-"S14",2024,"D","NP",1,"Lien B9 B8",5
-"S11",2024,"C","D9R",-1,"Lien B9 B8",1
-"S11",2024,"C","D9P",-1,"Lien B9 B8",1
-"S15",2024,"C","D9P",-1,"Lien B9 B8",6
-"S15",2024,"C","D9R",-1,"Lien B9 B8",6
-"S12",2024,"C","D9R",-1,"Lien B9 B8",2
-"S13",2024,"C","D9R",-1,"Lien B9 B8",4
-"S13",2024,"C","D9P",-1,"Lien B9 B8",4
-"S12",2024,"C","D9P",-1,"Lien B9 B8",2
-"S12",2024,"B","B8G",-1,"Lien B9 B8",2
-"S13",2024,"B","B8G",-1,"Lien B9 B8",4
-"S15",2024,"B","B8G",-1,"Lien B9 B8",6
-"S11",2024,"B","B8G",-1,"Lien B9 B8",1
-"S15",2024,"D","NP",1,"Lien B9 B8",6
-"S1",2024,"D","NP",1,"Lien B9 B8",3
-"S1",2024,"C","D9R",-1,"Lien B9 B8",3
-"S1",2024,"C","D9P",-1,"Lien B9 B8",3
-"S1",2024,"B","B8G",-1,"Lien B9 B8",3
-"S1",2024,"D","P3",1,"Définition B8G",1
-"S15",2024,"D","P3",1,"Définition B8G",2
-"S14",2024,"D","P3",1,"Définition B8G",3
-"S13",2024,"D","P3",1,"Définition B8G",4
-"S14",2024,"B","B8G",1,"Définition B8G",3
-"S14",2024,"B","B6G",-1,"Définition B8G",3
-"S12",2024,"D","D8",1,"Définition B8G",5
-"S12",2024,"B","B6G",-1,"Définition B8G",5
-"S11",2024,"B","B6G",-1,"Définition B8G",6
-"S15",2024,"B","B6G",-1,"Définition B8G",2
-"S13",2024,"B","B6G",-1,"Définition B8G",4
-"S12",2024,"B","B8G",1,"Définition B8G",5
-"S13",2024,"B","B8G",1,"Définition B8G",4
-"S15",2024,"B","B8G",1,"Définition B8G",2
-"S11",2024,"B","B8G",1,"Définition B8G",6
-"S11",2024,"D","D8",1,"Définition B8G",6
-"S15",2024,"D","D8",1,"Définition B8G",2
-"S14",2024,"D","D8",1,"Définition B8G",3
-"S1",2024,"C","D8",-1,"Définition B8G",1
-"S1",2024,"D","D8",1,"Définition B8G",1
-"S14",2024,"C","D8",-1,"Définition B8G",3
-"S13",2024,"D","D8",1,"Définition B8G",4
-"S1",2024,"B","B8G",1,"Définition B8G",1
-"S1",2024,"B","B6G",-1,"Définition B8G",1
-"S14",2024,"D","D7",1,"Définition B6G",1
-"S14",2024,"C","D7",-1,"Définition B6G",1
-"S14",2024,"B","B5G",-1,"Définition B6G",1
-"S14",2024,"B","B6G",1,"Définition B6G",1
-"S11",2024,"D","D7",1,"Définition B6G",2
-"S12",2024,"D","D7",1,"Définition B6G",3
-"S13",2024,"D","D7",1,"Définition B6G",4
-"S15",2024,"C","D7",-1,"Définition B6G",5
-"S11",2024,"C","D7",-1,"Définition B6G",2
-"S15",2024,"D","D7",1,"Définition B6G",5
-"S13",2024,"C","D7",-1,"Définition B6G",4
-"S12",2024,"C","D7",-1,"Définition B6G",3
-"S12",2024,"B","B6G",1,"Définition B6G",3
-"S11",2024,"B","B5G",-1,"Définition B6G",2
-"S12",2024,"B","B5G",-1,"Définition B6G",3
-"S13",2024,"B","B5G",-1,"Définition B6G",4
-"S15",2024,"B","B5G",-1,"Définition B6G",5
-"S11",2024,"B","B6G",1,"Définition B6G",2
-"S15",2024,"B","B6G",1,"Définition B6G",5
-"S13",2024,"B","B6G",1,"Définition B6G",4
-"S15",2024,"C","D6",-1,"Définition B6G",5
-"S12",2024,"D","D6",1,"Définition B6G",3
-"S1",2024,"C","D6",-1,"Définition B6G",6
-"S15",2024,"D","D6",1,"Définition B6G",5
-"S13",2024,"D","D6",1,"Définition B6G",4
-"S12",2024,"C","D6",-1,"Définition B6G",3
-"S1",2024,"D","D6",1,"Définition B6G",6
-"S11",2024,"D","D6",1,"Définition B6G",2
-"S11",2024,"C","D6",-1,"Définition B6G",2
-"S14",2024,"D","D6",1,"Définition B6G",1
-"S13",2024,"C","D6",-1,"Définition B6G",4
-"S14",2024,"C","D6",-1,"Définition B6G",1
-"S1",2024,"D","D7",1,"Définition B6G",6
-"S1",2024,"C","D7",-1,"Définition B6G",6
-"S1",2024,"B","B6G",1,"Définition B6G",6
-"S1",2024,"B","B5G",-1,"Définition B6G",6
+"S11",2024,"B","B9",1,"Lien épargne/capacité ou besoin de financement",1
+"S12",2024,"B","B9",1,"Lien épargne/capacité ou besoin de financement",2
+"S1",2024,"B","B9",1,"Lien épargne/capacité ou besoin de financement",3
+"S13",2024,"B","B9",1,"Lien épargne/capacité ou besoin de financement",4
+"S14",2024,"B","B9",1,"Lien épargne/capacité ou besoin de financement",5
+"S15",2024,"B","B9",1,"Lien épargne/capacité ou besoin de financement",6
+"S1",2024,"D","P5",1,"Lien épargne/capacité ou besoin de financement",3
+"S14",2024,"C","D9P",-1,"Lien épargne/capacité ou besoin de financement",5
+"S14",2024,"C","D9R",-1,"Lien épargne/capacité ou besoin de financement",5
+"S14",2024,"B","B8G",-1,"Lien épargne/capacité ou besoin de financement",5
+"S15",2024,"D","P5",1,"Lien épargne/capacité ou besoin de financement",6
+"S14",2024,"D","P5",1,"Lien épargne/capacité ou besoin de financement",5
+"S13",2024,"D","P5",1,"Lien épargne/capacité ou besoin de financement",4
+"S11",2024,"D","P5",1,"Lien épargne/capacité ou besoin de financement",1
+"S12",2024,"D","P5",1,"Lien épargne/capacité ou besoin de financement",2
+"S13",2024,"D","NP",1,"Lien épargne/capacité ou besoin de financement",4
+"S11",2024,"D","NP",1,"Lien épargne/capacité ou besoin de financement",1
+"S12",2024,"D","NP",1,"Lien épargne/capacité ou besoin de financement",2
+"S14",2024,"D","NP",1,"Lien épargne/capacité ou besoin de financement",5
+"S11",2024,"C","D9R",-1,"Lien épargne/capacité ou besoin de financement",1
+"S11",2024,"C","D9P",-1,"Lien épargne/capacité ou besoin de financement",1
+"S15",2024,"C","D9P",-1,"Lien épargne/capacité ou besoin de financement",6
+"S15",2024,"C","D9R",-1,"Lien épargne/capacité ou besoin de financement",6
+"S12",2024,"C","D9R",-1,"Lien épargne/capacité ou besoin de financement",2
+"S13",2024,"C","D9R",-1,"Lien épargne/capacité ou besoin de financement",4
+"S13",2024,"C","D9P",-1,"Lien épargne/capacité ou besoin de financement",4
+"S12",2024,"C","D9P",-1,"Lien épargne/capacité ou besoin de financement",2
+"S12",2024,"B","B8G",-1,"Lien épargne/capacité ou besoin de financement",2
+"S13",2024,"B","B8G",-1,"Lien épargne/capacité ou besoin de financement",4
+"S15",2024,"B","B8G",-1,"Lien épargne/capacité ou besoin de financement",6
+"S11",2024,"B","B8G",-1,"Lien épargne/capacité ou besoin de financement",1
+"S15",2024,"D","NP",1,"Lien épargne/capacité ou besoin de financement",6
+"S1",2024,"D","NP",1,"Lien épargne/capacité ou besoin de financement",3
+"S1",2024,"C","D9R",-1,"Lien épargne/capacité ou besoin de financement",3
+"S1",2024,"C","D9P",-1,"Lien épargne/capacité ou besoin de financement",3
+"S1",2024,"B","B8G",-1,"Lien épargne/capacité ou besoin de financement",3
+"S1",2024,"D","P3",1,"Lien solde revenus primaires/épargne",1
+"S15",2024,"D","P3",1,"Lien solde revenus primaires/épargne",2
+"S14",2024,"D","P3",1,"Lien solde revenus primaires/épargne",3
+"S13",2024,"D","P3",1,"Lien solde revenus primaires/épargne",4
+"S14",2024,"B","B8G",1,"Lien solde revenus primaires/épargne",3
+"S14",2024,"B","B6G",-1,"Lien solde revenus primaires/épargne",3
+"S12",2024,"D","D8",1,"Lien solde revenus primaires/épargne",5
+"S12",2024,"B","B6G",-1,"Lien solde revenus primaires/épargne",5
+"S11",2024,"B","B6G",-1,"Lien solde revenus primaires/épargne",6
+"S15",2024,"B","B6G",-1,"Lien solde revenus primaires/épargne",2
+"S13",2024,"B","B6G",-1,"Lien solde revenus primaires/épargne",4
+"S12",2024,"B","B8G",1,"Lien solde revenus primaires/épargne",5
+"S13",2024,"B","B8G",1,"Lien solde revenus primaires/épargne",4
+"S15",2024,"B","B8G",1,"Lien solde revenus primaires/épargne",2
+"S11",2024,"B","B8G",1,"Lien solde revenus primaires/épargne",6
+"S11",2024,"D","D8",1,"Lien solde revenus primaires/épargne",6
+"S15",2024,"D","D8",1,"Lien solde revenus primaires/épargne",2
+"S14",2024,"D","D8",1,"Lien solde revenus primaires/épargne",3
+"S1",2024,"C","D8",-1,"Lien solde revenus primaires/épargne",1
+"S1",2024,"D","D8",1,"Lien solde revenus primaires/épargne",1
+"S14",2024,"C","D8",-1,"Lien solde revenus primaires/épargne",3
+"S13",2024,"D","D8",1,"Lien solde revenus primaires/épargne",4
+"S1",2024,"B","B8G",1,"Lien solde revenus primaires/épargne",1
+"S1",2024,"B","B6G",-1,"Lien solde revenus primaires/épargne",1
+"S14",2024,"D","D7",1,"Lien revenu disponible/solde revenus primaires",1
+"S14",2024,"C","D7",-1,"Lien revenu disponible/solde revenus primaires",1
+"S14",2024,"B","B5G",-1,"Lien revenu disponible/solde revenus primaires",1
+"S14",2024,"B","B6G",1,"Lien revenu disponible/solde revenus primaires",1
+"S11",2024,"D","D7",1,"Lien revenu disponible/solde revenus primaires",2
+"S12",2024,"D","D7",1,"Lien revenu disponible/solde revenus primaires",3
+"S13",2024,"D","D7",1,"Lien revenu disponible/solde revenus primaires",4
+"S15",2024,"C","D7",-1,"Lien revenu disponible/solde revenus primaires",5
+"S11",2024,"C","D7",-1,"Lien revenu disponible/solde revenus primaires",2
+"S15",2024,"D","D7",1,"Lien revenu disponible/solde revenus primaires",5
+"S13",2024,"C","D7",-1,"Lien revenu disponible/solde revenus primaires",4
+"S12",2024,"C","D7",-1,"Lien revenu disponible/solde revenus primaires",3
+"S12",2024,"B","B6G",1,"Lien revenu disponible/solde revenus primaires",3
+"S11",2024,"B","B5G",-1,"Lien revenu disponible/solde revenus primaires",2
+"S12",2024,"B","B5G",-1,"Lien revenu disponible/solde revenus primaires",3
+"S13",2024,"B","B5G",-1,"Lien revenu disponible/solde revenus primaires",4
+"S15",2024,"B","B5G",-1,"Lien revenu disponible/solde revenus primaires",5
+"S11",2024,"B","B6G",1,"Lien revenu disponible/solde revenus primaires",2
+"S15",2024,"B","B6G",1,"Lien revenu disponible/solde revenus primaires",5
+"S13",2024,"B","B6G",1,"Lien revenu disponible/solde revenus primaires",4
+"S15",2024,"C","D6",-1,"Lien revenu disponible/solde revenus primaires",5
+"S12",2024,"D","D6",1,"Lien revenu disponible/solde revenus primaires",3
+"S1",2024,"C","D6",-1,"Lien revenu disponible/solde revenus primaires",6
+"S15",2024,"D","D6",1,"Lien revenu disponible/solde revenus primaires",5
+"S13",2024,"D","D6",1,"Lien revenu disponible/solde revenus primaires",4
+"S12",2024,"C","D6",-1,"Lien revenu disponible/solde revenus primaires",3
+"S1",2024,"D","D6",1,"Lien revenu disponible/solde revenus primaires",6
+"S11",2024,"D","D6",1,"Lien revenu disponible/solde revenus primaires",2
+"S11",2024,"C","D6",-1,"Lien revenu disponible/solde revenus primaires",2
+"S14",2024,"D","D6",1,"Lien revenu disponible/solde revenus primaires",1
+"S13",2024,"C","D6",-1,"Lien revenu disponible/solde revenus primaires",4
+"S14",2024,"C","D6",-1,"Lien revenu disponible/solde revenus primaires",1
+"S1",2024,"D","D7",1,"Lien revenu disponible/solde revenus primaires",6
+"S1",2024,"C","D7",-1,"Lien revenu disponible/solde revenus primaires",6
+"S1",2024,"B","B6G",1,"Lien revenu disponible/solde revenus primaires",6
+"S1",2024,"B","B5G",-1,"Lien revenu disponible/solde revenus primaires",6
 "S1",2024,"B","B3G",-1,"Définition B5G",1
 "S1",2024,"B","B2G",-1,"Définition B5G",1
 "S14",2024,"C","D1",-1,"Définition B5G",2

@@ -30,7 +30,8 @@ const formulas = G.getFormulasFor('S1', 'B', 'B9');
 assert(formulas.length >= 2, `B9/S1 participe à >=2 formules (trouvé ${formulas.length})`);
 
 // 3) expansion de la définition de B9 et vérification de l'identité comptable pour 2024
-// (le libellé brut du script R pour cette identité est "Lien B9 B8", pas "Définition ...")
+// (le libellé brut du script R pour cette identité est "Lien épargne/capacité ou besoin
+// de financement", pas "Définition ...")
 const defB9 = formulas.find(f => f.label !== 'Ventilation en sous-secteur');
 assert(!!defB9, 'une formule de définition existe pour B9');
 if (defB9) {

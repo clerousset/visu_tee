@@ -205,9 +205,9 @@ def main():
     ss_ventil = build_ss_ventil(df)
     b2g = build_ebe(df)
     b5g = build_b5g(df)
-    b6g = build_signe_target_or_D(df, {"B6G", "B5G", "D6", "D7"}, "B6G", "Définition B6G")
-    b8g = build_signe_target_or_D(df, {"B8G", "B6G", "P3", "D8"}, "B8G", "Définition B8G")
-    b9g = build_signe_target_or_D(df, {"B9", "B8G", "P5", "D9R", "D9P", "NP"}, "B9", "Lien B9 B8")
+    b6g = build_signe_target_or_D(df, {"B6G", "B5G", "D6", "D7"}, "B6G", "Lien revenu disponible/solde revenus primaires")
+    b8g = build_signe_target_or_D(df, {"B8G", "B6G", "P3", "D8"}, "B8G", "Lien solde revenus primaires/épargne")
+    b9g = build_signe_target_or_D(df, {"B9", "B8G", "P5", "D9R", "D9P", "NP"}, "B9", "Lien épargne/capacité ou besoin de financement")
 
     all_rows = b9g + b8g + b6g + b5g + b2g + ss_ventil + ss_secteur
 
