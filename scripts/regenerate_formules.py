@@ -109,43 +109,48 @@ def build_ss_secteur(df):
 
 
 def build_ss_ventil(df):
+    # décomposition en sous-catégorie, à n'importe quel niveau d'emboîtement
+    # de la nomenclature STO (ex. D4 = D41+D42+...+D45, et séparément
+    # D42 = D421+D422) : pour chaque poste, son "parent" est son propre code
+    # privé de son dernier caractère (D421 -> D42 -> D4) ; un bloc n'est
+    # retenu que si ce parent existe bien comme poste observé et que la
+    # somme de ses enfants directs reconstitue sa valeur (tolérance < 1)
     cd = [r for r in df if r["ACCOUNTING_ENTRY"] in ("C", "D")]
-    children = [r for r in cd if len(r["STO"]) == 3]
-    parents = {
-        (r["ACCOUNTING_ENTRY"], r["TIME_PERIOD"], r["REF_SECTOR"], r["STO"]): r
-        for r in cd if len(r["STO"]) == 2
-    }
+    by_key = {(r["ACCOUNTING_ENTRY"], r["TIME_PERIOD"], r["REF_SECTOR"], r["STO"]): r for r in cd}
 
-    sums = {}
-    for r in children:
-        parent = r["STO"][:2]
-        k = (r["ACCOUNTING_ENTRY"], r["TIME_PERIOD"], r["REF_SECTOR"], parent)
-        sums[k] = sums.get(k, 0.0) + (r["OBS_VALUE"] or 0.0)
-
-    valid_keys = set()
-    for k, total in sums.items():
-        p = parents.get(k)
-        if p is None or p["OBS_VALUE"] is None:
+    children_by_parent = {}
+    for r in cd:
+        sto = r["STO"]
+        if len(sto) < 3:
             continue
-        if abs(total - p["OBS_VALUE"]) < 1:
-            valid_keys.add((k[0], k[2], k[3]))  # (entry, sector, parent) — sans TIME_PERIOD, comme le semi_join R
+        parent = sto[:-1]
+        k = (r["ACCOUNTING_ENTRY"], r["TIME_PERIOD"], r["REF_SECTOR"], parent)
+        if k not in by_key:
+            continue
+        children_by_parent.setdefault(k, []).append(r)
 
     get_id = new_id_sequence()
     out = []
-    for r in cd:
-        if len(r["STO"]) > 3:
+    for k, kids in children_by_parent.items():
+        entry, time_period, sector, parent = k
+        parent_row = by_key[k]
+        if parent_row["OBS_VALUE"] is None:
             continue
-        parent = r["STO"][:2]
-        vk = (r["ACCOUNTING_ENTRY"], r["REF_SECTOR"], parent)
-        if vk not in valid_keys:
+        total = sum((c["OBS_VALUE"] or 0.0) for c in kids)
+        if abs(total - parent_row["OBS_VALUE"]) >= 1:
             continue
+        fid = get_id((entry, parent, time_period, sector))
         out.append({
-            "REF_SECTOR": r["REF_SECTOR"], "TIME_PERIOD": r["TIME_PERIOD"],
-            "ACCOUNTING_ENTRY": r["ACCOUNTING_ENTRY"], "STO": r["STO"],
-            "signe": 1 if len(r["STO"]) == 2 else -1,
-            "formule": "Ventilation en sous-catégorie",
-            "id_formule": get_id((r["ACCOUNTING_ENTRY"], parent, r["TIME_PERIOD"], r["REF_SECTOR"])),
+            "REF_SECTOR": sector, "TIME_PERIOD": time_period,
+            "ACCOUNTING_ENTRY": entry, "STO": parent,
+            "signe": 1, "formule": "Ventilation en sous-catégorie", "id_formule": fid,
         })
+        for c in kids:
+            out.append({
+                "REF_SECTOR": sector, "TIME_PERIOD": time_period,
+                "ACCOUNTING_ENTRY": entry, "STO": c["STO"],
+                "signe": -1, "formule": "Ventilation en sous-catégorie", "id_formule": fid,
+            })
     return out
 
 

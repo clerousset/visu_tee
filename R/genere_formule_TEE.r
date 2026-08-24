@@ -20,26 +20,37 @@ somme_ok = df %>% filter(REF_SECTOR != "S1") %>%
    mutate(id_formule = cur_group_id()) %>% ungroup() %>%
    arrange(id_formule, formule)
 
-somme_ok = df %>% filter(ACCOUNTING_ENTRY %in% c('C', 'D')) %>%
-   mutate(taille = nchar(STO)) %>% filter(taille == 3) %>%
-   mutate(parent = substring(STO, 1, 2)) %>%
-   group_by(ACCOUNTING_ENTRY, TIME_PERIOD, REF_SECTOR, parent) %>%
-   summarise(sum_OBS_VALUE = sum(OBS_VALUE, na.rm = TRUE), .groups = "drop") %>%
-   left_join(df %>% filter(ACCOUNTING_ENTRY %in% c('C', 'D'))  %>%
-    mutate(taille = nchar(STO)) %>% filter(taille == 2) %>% rename(parent = STO),
-     by = c("ACCOUNTING_ENTRY", "TIME_PERIOD", "REF_SECTOR", "parent")) %>% 
-    filter(abs(sum_OBS_VALUE - OBS_VALUE) < 1)
+# décomposition en sous-catégorie, à n'importe quel niveau d'emboîtement de
+# la nomenclature STO (ex. D4 = D41+D42+...+D45, et séparément
+# D42 = D421+D422) : le "parent" d'un poste est son propre code privé de son
+# dernier caractère (D421 -> D42 -> D4) ; un bloc n'est retenu que si ce
+# parent existe bien comme poste observé et que la somme de ses enfants
+# directs reconstitue sa valeur (tolérance < 1)
+cd = df %>% filter(ACCOUNTING_ENTRY %in% c('C', 'D'))
 
-ss_ventil = df %>% filter(ACCOUNTING_ENTRY %in% c('C', 'D')) %>%
-   mutate(taille = nchar(STO)) %>% filter(taille <= 3) %>% 
-   mutate(parent = substr(STO, 1, 2)) %>% 
-   semi_join(somme_ok, by = c("ACCOUNTING_ENTRY", "REF_SECTOR", "parent")) %>%
-    select(-OBS_VALUE) %>% 
-   mutate(signe = if_else(nchar(STO) == 2, 1, -1),
-        formule = "Ventilation en sous-catégorie") %>%
+parent_lookup = cd %>% select(ACCOUNTING_ENTRY, TIME_PERIOD, REF_SECTOR, STO, OBS_VALUE) %>%
+   rename(parent = STO, parent_value = OBS_VALUE)
+
+kids = cd %>% filter(nchar(STO) >= 3) %>%
+   mutate(parent = substr(STO, 1, nchar(STO) - 1)) %>%
+   inner_join(parent_lookup, by = c("ACCOUNTING_ENTRY", "TIME_PERIOD", "REF_SECTOR", "parent"))
+
+somme_ok = kids %>%
+   group_by(ACCOUNTING_ENTRY, TIME_PERIOD, REF_SECTOR, parent, parent_value) %>%
+   summarise(sum_OBS_VALUE = sum(OBS_VALUE, na.rm = TRUE), .groups = "drop") %>%
+   filter(abs(sum_OBS_VALUE - parent_value) < 1)
+
+kids_valid = kids %>% semi_join(somme_ok, by = c("ACCOUNTING_ENTRY", "TIME_PERIOD", "REF_SECTOR", "parent")) %>%
+   transmute(REF_SECTOR, TIME_PERIOD, ACCOUNTING_ENTRY, STO, signe = -1, parent)
+
+parents_valid = somme_ok %>%
+   transmute(REF_SECTOR, TIME_PERIOD, ACCOUNTING_ENTRY, STO = parent, signe = 1, parent)
+
+ss_ventil = bind_rows(parents_valid, kids_valid) %>%
+   mutate(formule = "Ventilation en sous-catégorie") %>%
    group_by(ACCOUNTING_ENTRY, parent, TIME_PERIOD, REF_SECTOR) %>%
    mutate(id_formule = cur_group_id()) %>% ungroup() %>%
-   arrange(id_formule, formule) %>% select(-taille, -parent)
+   arrange(id_formule, formule) %>% select(-parent)
 
 #B3G + B2G = B1G - D1_D -D2_D - D3_D
 
