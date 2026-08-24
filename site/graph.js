@@ -150,11 +150,7 @@
         cumNeg += c.contribution;
         y1 = zeroY - cumNeg * scale;
       }
-      return {
-        sector: c.sector, entry: c.entry, sto: c.sto,
-        contribution: c.contribution, positive: c.contribution >= 0,
-        y0, y1,
-      };
+      return Object.assign({}, c, { positive: c.contribution >= 0, y0, y1 });
     });
 
     return { segments, zeroY, width, height, total, posSum, negSum, missing: (others || []).length - contributions.length };

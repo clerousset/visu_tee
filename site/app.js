@@ -34,6 +34,8 @@
     '#ff6b9d', '#4fd18b', '#f0a04b', '#6bc9ff', '#d17ee0',
   ];
   function colorForIndex(i) { return STACK_PALETTE[i % STACK_PALETTE.length]; }
+  const OTHER_COLOR = '#6b7280'; // gris neutre pour le regroupement "Autres"
+  const MAX_SIDEBAR_SEGMENTS = 8; // au-delà, les plus petites contributions sont regroupées
 
   // suffixe le code STO par sa position (_C / _D) quand elle est ambiguë :
   // un même poste (ex. D7) peut apparaître à la fois en ressource et en
@@ -203,8 +205,8 @@
   // Si plusieurs identités alternatives sont ouvertes sur un même poste, on
   // n'en retient qu'une (la première) pour garder un seul graphe cohérent.
   function collectLeaves(sector, entry, sto, year, path, expandedTree, effectiveSign, depth) {
-    const node = expandedTree[path];
-    const activeIds = node ? Object.keys(node.active).filter(id => node.active[id]) : [];
+    const active = (expandedTree[path] && expandedTree[path].active) || {};
+    const activeIds = Object.keys(active).filter(id => active[id]);
     if (activeIds.length === 0) {
       return [{ sector, entry, sto, effectiveSign, value: G.getValue(sector, entry, sto, year), depth }];
     }
@@ -224,6 +226,31 @@
     return leaves;
   }
 
+  // regroupe les contributions les plus faibles (en valeur absolue) dans une
+  // entrée "Autres" quand il y a trop de postes pour rester lisible ; les
+  // termes indisponibles (valeur nulle) restent à part, comptés dans
+  // bar.missing par stackedBarGeometry
+  function groupSmallContributions(leaves, max) {
+    const withValue = leaves.filter(l => l.value !== null && l.value !== undefined);
+    const missing = leaves.filter(l => l.value === null || l.value === undefined);
+    if (withValue.length <= max) return leaves;
+    const ranked = withValue.slice().sort((a, b) =>
+      Math.abs(b.effectiveSign * b.value) - Math.abs(a.effectiveSign * a.value));
+    const kept = ranked.slice(0, max - 1);
+    const rest = ranked.slice(max - 1);
+    const restSum = rest.reduce((acc, l) => acc + l.effectiveSign * l.value, 0);
+    const other = {
+      sector: null, entry: null, sto: null, effectiveSign: 1, value: restSum,
+      isOther: true, otherCount: rest.length,
+    };
+    return kept.concat(missing, [other]);
+  }
+
+  function segmentLabel(s, sector) {
+    if (s.isOther) return 'Autres (' + s.otherCount + ' poste' + (s.otherCount > 1 ? 's' : '') + ')';
+    return stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '');
+  }
+
   function Sidebar({ sector, entry, sto, year, expandedTree }) {
     const leaves = collectLeaves(sector, entry, sto, year, 'root', expandedTree, 1, 0);
     if (leaves.length <= 1) {
@@ -237,7 +264,11 @@
     }
 
     const rootValue = G.getValue(sector, entry, sto, year);
-    const bar = TeeGraphLib.stackedBarGeometry(leaves, { width: 64, height: 320, pad: 4 });
+    const grouped = groupSmallContributions(leaves, MAX_SIDEBAR_SEGMENTS);
+    const bar = TeeGraphLib.stackedBarGeometry(grouped, { width: 64, height: 320, pad: 4 });
+
+    let paletteIdx = 0;
+    const colors = bar.segments.map(s => s.isOther ? OTHER_COLOR : colorForIndex(paletteIdx++));
 
     const rects = bar.segments.map((s, i) =>
       h('rect', {
@@ -247,19 +278,16 @@
         y: Math.min(s.y0, s.y1),
         height: Math.max(1, Math.abs(s.y1 - s.y0)),
         className: 'stack-seg',
-        style: { fill: colorForIndex(i) },
+        style: { fill: colors[i] },
       }, [
-        h('title', { key: 'tt' },
-          stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '') + ' : ' + fmtMd(s.contribution)
-        ),
+        h('title', { key: 'tt' }, segmentLabel(s, sector) + ' : ' + fmtMd(s.contribution)),
       ])
     );
 
     const legend = bar.segments.map((s, i) =>
       h('div', { className: 'legend-item', key: i }, [
-        h('span', { className: 'legend-swatch', key: 'sw', style: { background: colorForIndex(i) } }),
-        h('span', { className: 'legend-label', key: 'lb' },
-          stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '')),
+        h('span', { className: 'legend-swatch', key: 'sw', style: { background: colors[i] } }),
+        h('span', { className: 'legend-label', key: 'lb' }, segmentLabel(s, sector)),
         h('span', { className: 'legend-value', key: 'val' }, fmtMd(s.contribution)),
       ])
     );
@@ -272,9 +300,12 @@
           h('svg', {
             key: 'svg', viewBox: '0 0 ' + bar.width + ' ' + bar.height,
             width: bar.width, height: bar.height, className: 'stacked-bar-svg',
-          }, [
+          }, rects.concat([
+            // dessinée après (donc au-dessus) des segments : sinon, comme les
+            // barres partent toujours exactement de zéro, elle serait
+            // systématiquement recouverte et invisible
             h('line', { key: 'zero', x1: 0, x2: bar.width, y1: bar.zeroY, y2: bar.zeroY, className: 'stack-zero' }),
-          ].concat(rects)),
+          ])),
           h('div', { className: 'stacked-bar-legend', key: 'legend' }, legend),
         ]),
         h('div', { className: 'stacked-bar-total', key: 'total' },

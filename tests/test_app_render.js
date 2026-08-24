@@ -226,7 +226,8 @@ console.log('\n--- Test du panneau latéral (dépliage réel simulé, y compris 
     childBtn.props.onClick();
     tree3 = render3(sandbox3.__rendered, 'root3');
     const panelsAfterNested = findAll3(tree3, isPanel);
-    assert(panelsAfterNested.length === 2, `deux panneaux après ouverture d'une sous-décomposition (trouvé ${panelsAfterNested.length})`);
+    assert(panelsAfterNested.length === 1,
+      `toujours un seul panneau après ouverture d'une sous-décomposition (trouvé ${panelsAfterNested.length}) : elle enrichit le même graphique`);
 
     // referme la décomposition racine : la sous-décomposition doit disparaître en cascade
     btns = findAll3(tree3, isButton);
