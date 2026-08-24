@@ -123,6 +123,45 @@ def load_values(src_csv, needed_keys):
     return values
 
 
+def load_sut(src_csv=None):
+    # Tableau des ressources et emplois (SUT) : même traitement que
+    # load_values() (filtre + sélection de colonnes) pour un fichier source
+    # aux dimensions différentes (ACTIVITY x PRODUCT, classification CPA, en
+    # plus de REF_SECTOR/ACCOUNTING_ENTRY/STO). Pas de CONSOLIDATION ni de
+    # TRANSFORMATION dans ce fichier ; PRICES == "V" joue le rôle
+    # équivalent (valeur courante, par opposition aux volumes chaînés "L").
+    # Ne construit pour l'instant qu'une liste de lignes filtrées et
+    # dédupliquées : pas encore intégré à la sortie site/data/tee_graph.js.
+    src_csv = src_csv or f"{DATA_DIR}/DD_CNA_SUT_data.csv"
+    cols = ["REF_SECTOR", "ACCOUNTING_ENTRY", "STO", "ACTIVITY", "PRODUCT", "TIME_PERIOD", "OBS_VALUE"]
+    rows = []
+    seen = set()
+    with open(src_csv, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for r in reader:
+            if r["UNIT_MEASURE"] != "XDC":
+                continue
+            if r["COUNTERPART_AREA"] != "W0":
+                continue
+            if r["INSTR_ASSET"] != "_Z":
+                continue
+            if r["PRICES"] != "V":
+                continue
+            if r["REF_SECTOR"] not in SECTEURS:
+                continue
+            val = r["OBS_VALUE"]
+            if not val:
+                continue
+            row = {c: r[c] for c in cols}
+            row["OBS_VALUE"] = float(val)
+            key = tuple(row[c] for c in cols)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(row)
+    return rows
+
+
 def main():
     src_data = sys.argv[1] if len(sys.argv) > 1 else f"{DATA_DIR}/DD_CNA_TEE_data.csv"
     labels = load_metadata()
