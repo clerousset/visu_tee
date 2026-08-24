@@ -1,0 +1,9 @@
+{{ .Chart.Name }} déployé.
+
+{{- if .Values.ingress.enabled }}
+Site accessible via : http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}
+{{- else }}
+Aucun ingress activé (ingress.enabled=false). Pour accéder au site :
+  kubectl port-forward svc/{{ include "visu-tee.fullname" . }} 8080:{{ .Values.service.port }}
+puis ouvrir http://localhost:8080
+{{- end }}

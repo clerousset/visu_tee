@@ -19,6 +19,8 @@ R/        script R de référence (calcule les identités comptables de formules
 scripts/  scripts Python de préparation des données pour le site
 site/     site web statique (HTML/CSS/JS, React sans étape de build, aucun serveur requis)
 tests/    tests de non-régression sans dépendance externe
+helm/     chart Helm minimal pour déployer site/ (nginx) sur Kubernetes
+Dockerfile  image nginx servant site/ (utilisée par le chart Helm)
 ```
 
 ## Ouvrir le site
@@ -104,6 +106,20 @@ et un DOM minimalistes simulés (aucune dépendance externe requise, comme
 `jsdom`, qui n'a pas pu être installée dans cet environnement) et inclut un
 test de dépliage récursif en profondeur pour détecter d'éventuelles erreurs
 de rendu.
+
+## Déployer sur Kubernetes (Helm)
+
+Le site n'a besoin que de `site/` (fichiers statiques, données déjà
+embarquées) servi par nginx :
+
+```
+docker build -t visu-tee:latest .
+helm install visu-tee helm/visu-tee --set image.repository=visu-tee --set image.tag=latest
+```
+
+Chart minimal (`helm/visu-tee/`) : Deployment + Service + Ingress optionnel
+(`--set ingress.enabled=true --set ingress.host=...`). Voir
+`helm/visu-tee/values.yaml` pour les options.
 
 ## Source des données
 

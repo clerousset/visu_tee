@@ -1,0 +1,6 @@
+apiVersion: v2
+name: visu-tee
+description: Explorateur du Tableau Économique d'Ensemble (site statique, servi par nginx)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

@@ -1,0 +1,8 @@
+# Fichiers ignorés lors du packaging du chart (helm package / helm install)
+.git/
+.gitignore
+*.swp
+*.bak
+*.tmp
+*.orig
+.DS_Store

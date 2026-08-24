@@ -1,0 +1,25 @@
+replicaCount: 1
+
+image:
+  repository: visu-tee
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  host: visu-tee.example.com
+  annotations: {}
+  tls: false
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi
