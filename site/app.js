@@ -25,6 +25,16 @@
     return (v / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + ' Md€';
   }
 
+  // unité "pct" (menu "Unités") : croissance annuelle pour la carte de
+  // départ, contribution à cette croissance (en points) pour les autres —
+  // même formule (Δ/valeur précédente de la carte de départ), voir
+  // graph.js::getValue
+  function fmtPct(v) {
+    if (v === null || v === undefined) return '—';
+    return v.toLocaleString('fr-FR', { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + ' %';
+  }
+  function fmtValue(v, unit) { return unit === 'pct' ? fmtPct(v) : fmtMd(v); }
+
   function lowerFirst(str) { return str ? str.charAt(0).toLowerCase() + str.slice(1) : str; }
 
   // palette catégorielle pour distinguer chaque contribution de l'histogramme
@@ -105,30 +115,38 @@
   }
 
   // ---------- Carte ----------
-  function Card({ sector, entry, sto, year, value, effectiveSign, hasFormulas, activity, unit, onSetRoot }) {
+  function Card({ sector, entry, sto, year, value, effectiveSign, hasFormulas, activity, unit, isRoot, pctRoot, onSetRoot }) {
     const signClass = value === null ? '' : value >= 0 ? 'pos' : 'neg';
     const isDelta = unit === 'delta';
+    const isPct = unit === 'pct';
     const meaningText = lowerFirst(G.stoLabel(sto));
     // les valeurs ventilées par activité (SUT) n'ont pas de série annuelle
-    // embarquée sous cette forme : pas de mini-graphique pour ces cartes
-    const seriesHover = activity ? null : h(SeriesHover, { key: 'series', sector, entry, sto, year, unit });
+    // embarquée sous cette forme, et l'unité "pct" n'a pas d'historique
+    // calculé (seulement l'année sélectionnée) : pas de mini-graphique
+    // pour ces cartes
+    const seriesHover = (activity || isPct) ? null : h(SeriesHover, { key: 'series', sector, entry, sto, year, unit });
     const activityPhrase = activity ? ', dans l’activité ' + lowerFirst(G.activityLabel(activity)) : '';
-    // "delta" : la phrase se lit comme une variation entre deux années
-    // plutôt qu'un niveau à une date donnée
-    const quantityPhrase = isDelta ? 'de variation de ' + meaningText : 'de ' + meaningText;
-    const yearPhrase = isDelta ? 'entre ' + (year - 1) + ' et ' + year : 'de ' + year;
+    // en "pct", la carte de départ affiche son propre taux de croissance,
+    // les autres cartes leur contribution à CETTE croissance (voir
+    // graph.js::getValue) : la phrase le précise pour éviter toute confusion
+    const rootMeaningText = pctRoot ? lowerFirst(G.stoLabel(pctRoot.sto)) : meaningText;
+    const quantityPhrase = isPct
+      ? (isRoot ? 'de croissance de ' + meaningText : 'de contribution de ' + meaningText + ' à la croissance de ' + rootMeaningText)
+      : isDelta ? 'de variation de ' + meaningText : 'de ' + meaningText;
+    const yearPhrase = (isDelta || isPct) ? 'entre ' + (year - 1) + ' et ' + year : 'de ' + year;
 
     const sentence = h('p', { className: 'card-sentence', key: 'sentence' }, [
-      h('strong', { className: 'card-value ' + signClass, key: 'val' }, fmtMd(value)),
+      h('strong', { className: 'card-value ' + signClass, key: 'val' }, fmtValue(value, unit)),
       ' ',
       seriesHover,
       ' ' + quantityPhrase + ' ' + yearPhrase,
       ' pour ' + sectorPhrase(sector) + activityPhrase + '.' + (hasFormulas ? ' Ils peuvent se décomposer :' : ''),
     ]);
 
+    const codePrefix = isPct ? 'Δ%' : isDelta ? 'Δ' : '';
     const children = [
       h('div', { className: 'card-top', key: 'top' }, [
-        h('span', { className: 'card-sto', key: 'sto' }, (isDelta ? 'Δ' : '') + sto),
+        h('span', { className: 'card-sto', key: 'sto' }, codePrefix + sto),
         activity ? h('span', { className: 'card-activity-badge', key: 'act', title: G.activityLabel(activity) }, activity) : null,
         h('span', { className: 'card-entry-badge entry-' + entry, key: 'entry' }, G.entryLabel(entry)),
         h('button', {
@@ -172,12 +190,12 @@
   // dépliage (ex. "root>F12>S11|D|D7") ; les cartes enfants héritent d'un
   // chemin qui préfixe le leur, ce qui permet à handleToggle() de retrouver
   // et refermer toute une branche d'un coup (voir plus bas).
-  function FormulaGroup({ sector, entry, sto, year, formulaId, depth, path, expandedTree, onToggle, activity, unit, onSetRoot }) {
-    const exp = G.expandFormula(formulaId, sector, entry, sto, year, activity, unit);
+  function FormulaGroup({ sector, entry, sto, year, formulaId, depth, path, expandedTree, onToggle, activity, unit, pctRoot, onSetRoot }) {
+    const exp = G.expandFormula(formulaId, sector, entry, sto, year, activity, unit, pctRoot);
     if (!exp) return null;
-    // en delta, chaque terme de l'équation est lui-même une variation : le
-    // préfixe "Δ" le rappelle sur le code abrégé (ex. "ΔD9R_C")
-    const codePrefix = unit === 'delta' ? 'Δ' : '';
+    // en delta/pct, chaque terme de l'équation est lui-même une variation :
+    // le préfixe le rappelle sur le code abrégé (ex. "ΔD9R_C", "Δ%D9R_C")
+    const codePrefix = unit === 'pct' ? 'Δ%' : unit === 'delta' ? 'Δ' : '';
     // chaque terme est une bulle explicative individuelle (title) : le code
     // abrégé (ex. "D9R_C") reste affiché, mais survoler révèle son libellé complet
     const eqNodes = [
@@ -214,6 +232,7 @@
             expandedTree,
             onToggle,
             unit,
+            pctRoot,
             onSetRoot,
           })
         )
@@ -226,8 +245,8 @@
   // App (expandedTree), pas en useState local : ainsi, replier une identité
   // referme automatiquement (et proprement, dans le panneau latéral) toutes
   // les sous-décompositions ouvertes en dessous, sans état local à nettoyer.
-  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, path, expandedTree, onToggle, activity, unit, onSetRoot }) {
-    const value = G.getValue(sector, entry, sto, year, activity, unit);
+  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, path, expandedTree, onToggle, activity, unit, pctRoot, onSetRoot }) {
+    const value = G.getValue(sector, entry, sto, year, activity, unit, pctRoot);
     // on ne repropose pas la formule qui a généré cette carte (évite un
     // dépliage trivial "vers le parent" juste après avoir déplié celui-ci)
     const formulas = G.getFormulasFor(sector, entry, sto, year, activity).filter(f => f.id !== excludeFormulaId);
@@ -238,7 +257,7 @@
       formulas.map(f => {
         // bulle explicative : l'équation en toutes lettres, visible avant
         // même de cliquer sur le bouton pour déplier l'identité
-        const exp = G.expandFormula(f.id, sector, entry, sto, year, activity, unit);
+        const exp = G.expandFormula(f.id, sector, entry, sto, year, activity, unit, pctRoot);
         const preview = exp ? formulaPreviewText(exp, sector, sto, entry, unit) : undefined;
         return h('button', {
           key: f.id,
@@ -252,11 +271,11 @@
     const groups = Object.keys(active)
       .filter(id => active[id])
       .map(id => h(FormulaGroup, {
-        key: id, sector, entry, sto, year, activity, formulaId: id, depth: depth || 0, path, expandedTree, onToggle, unit, onSetRoot,
+        key: id, sector, entry, sto, year, activity, formulaId: id, depth: depth || 0, path, expandedTree, onToggle, unit, pctRoot, onSetRoot,
       }));
 
     return h('div', { className: 'card-node' }, [
-      h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign, hasFormulas: formulas.length > 0, activity, unit, onSetRoot }),
+      h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign, hasFormulas: formulas.length > 0, activity, unit, isRoot: (depth || 0) === 0, pctRoot, onSetRoot }),
       pills,
       groups.length ? h('div', { className: 'groups-stack', key: 'groups' }, groups) : null,
     ]);
@@ -271,15 +290,15 @@
   // graphique, la contribution du poste concerné par ses propres membres.
   // Si plusieurs identités alternatives sont ouvertes sur un même poste, on
   // n'en retient qu'une (la première) pour garder un seul graphe cohérent.
-  function collectLeaves(sector, entry, sto, year, path, expandedTree, effectiveSign, depth, activity, unit) {
+  function collectLeaves(sector, entry, sto, year, path, expandedTree, effectiveSign, depth, activity, unit, pctRoot) {
     const active = (expandedTree[path] && expandedTree[path].active) || {};
     const activeIds = Object.keys(active).filter(id => active[id]);
     if (activeIds.length === 0) {
-      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity, unit), depth }];
+      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity, unit, pctRoot), depth }];
     }
-    const exp = G.expandFormula(activeIds[0], sector, entry, sto, year, activity, unit);
+    const exp = G.expandFormula(activeIds[0], sector, entry, sto, year, activity, unit, pctRoot);
     if (!exp) {
-      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity, unit), depth }];
+      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity, unit, pctRoot), depth }];
     }
     const childPrefix = path + '>' + activeIds[0] + '>';
     const leaves = [];
@@ -287,7 +306,7 @@
       const childPath = childPrefix + m.sector + '|' + m.entry + '|' + m.sto + (m.activity ? '@' + m.activity : '');
       leaves.push(...collectLeaves(
         m.sector, m.entry, m.sto, year, childPath, expandedTree,
-        effectiveSign * m.effectiveSign, depth + 1, m.activity, unit
+        effectiveSign * m.effectiveSign, depth + 1, m.activity, unit, pctRoot
       ));
     });
     return leaves;
@@ -315,13 +334,13 @@
 
   function segmentLabel(s, sector, unit) {
     if (s.isOther) return 'Autres (' + s.otherCount + ' poste' + (s.otherCount > 1 ? 's' : '') + ')';
-    const codePrefix = unit === 'delta' ? 'Δ' : '';
+    const codePrefix = unit === 'pct' ? 'Δ%' : unit === 'delta' ? 'Δ' : '';
     const base = codePrefix + stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '');
     return s.activity ? base + ' [' + s.activity + ']' : base;
   }
 
-  function Sidebar({ sector, entry, sto, year, expandedTree, unit }) {
-    const leaves = collectLeaves(sector, entry, sto, year, 'root', expandedTree, 1, 0, undefined, unit);
+  function Sidebar({ sector, entry, sto, year, expandedTree, unit, pctRoot }) {
+    const leaves = collectLeaves(sector, entry, sto, year, 'root', expandedTree, 1, 0, undefined, unit, pctRoot);
     if (leaves.length <= 1) {
       return h('aside', { className: 'sidebar' }, [
         h('div', { className: 'sidebar-panel', key: 'empty' }, [
@@ -332,8 +351,8 @@
       ]);
     }
 
-    const codePrefix = unit === 'delta' ? 'Δ' : '';
-    const rootValue = G.getValue(sector, entry, sto, year, undefined, unit);
+    const codePrefix = unit === 'pct' ? 'Δ%' : unit === 'delta' ? 'Δ' : '';
+    const rootValue = G.getValue(sector, entry, sto, year, undefined, unit, pctRoot);
     const grouped = groupSmallContributions(leaves, MAX_SIDEBAR_SEGMENTS);
     const bar = TeeGraphLib.stackedBarGeometry(grouped, { width: 64, height: 320, pad: 4 });
 
@@ -350,7 +369,7 @@
         className: 'stack-seg',
         style: { fill: colors[i] },
       }, [
-        h('title', { key: 'tt' }, segmentLabel(s, sector, unit) + ' : ' + fmtMd(s.contribution)),
+        h('title', { key: 'tt' }, segmentLabel(s, sector, unit) + ' : ' + fmtValue(s.contribution, unit)),
       ])
     );
 
@@ -358,7 +377,7 @@
       h('div', { className: 'legend-item', key: i }, [
         h('span', { className: 'legend-swatch', key: 'sw', style: { background: colors[i] } }),
         h('span', { className: 'legend-label', key: 'lb' }, segmentLabel(s, sector, unit)),
-        h('span', { className: 'legend-value', key: 'val' }, fmtMd(s.contribution)),
+        h('span', { className: 'legend-value', key: 'val' }, fmtValue(s.contribution, unit)),
       ])
     );
 
@@ -379,8 +398,8 @@
           h('div', { className: 'stacked-bar-legend', key: 'legend' }, legend),
         ]),
         h('div', { className: 'stacked-bar-total', key: 'total' },
-          codePrefix + stoWithEntry(sto, entry) + ' = ' + fmtMd(bar.total) +
-          (rootValue !== null ? ' (carte : ' + fmtMd(rootValue) + ')' : '')
+          codePrefix + stoWithEntry(sto, entry) + ' = ' + fmtValue(bar.total, unit) +
+          (rootValue !== null ? ' (carte : ' + fmtValue(rootValue, unit) + ')' : '')
         ),
         bar.missing > 0
           ? h('div', { className: 'stacked-bar-note', key: 'note' }, bar.missing + ' terme(s) indisponible(s) pour ' + year)
@@ -400,10 +419,15 @@
     const [sto, setSto] = React.useState(D.seed.sto);
     const [rootActivity, setRootActivity] = React.useState(undefined);
     const [year, setYear] = React.useState(DEFAULT_YEAR);
-    // 'level' (comportement historique) ou 'delta' (variation par rapport à
-    // l'année précédente) ; se propage à toutes les valeurs affichées
-    // (cartes, équations, panneau latéral) via graph.js::getValue/series/expandFormula
+    // 'level' (comportement historique), 'delta' (variation par rapport à
+    // l'année précédente) ou 'pct' (cette variation en % de croissance pour
+    // la carte de départ, en points de contribution à cette croissance pour
+    // les autres) ; se propage à toutes les valeurs affichées (cartes,
+    // équations, panneau latéral) via graph.js::getValue/series/expandFormula
     const [unit, setUnit] = React.useState('level');
+    // dénominateur commun de l'unité "pct" : le poste de départ courant,
+    // recalculé à chaque rendu (bon marché, pas de useMemo nécessaire ici)
+    const pctRoot = { sector: rootSector, entry: rootEntry, sto, activity: rootActivity };
     // arbre complet des décompositions actives, à n'importe quelle
     // profondeur : { [path]: { sector, entry, sto, depth, active: {formulaId: bool} } }
     // `path` encode la branche complète (voir FormulaGroup/CardNode), ce qui
@@ -467,6 +491,7 @@
             }, [
               h('option', { key: 'level', value: 'level' }, 'En niveau'),
               h('option', { key: 'delta', value: 'delta' }, 'En delta (variation annuelle)'),
+              h('option', { key: 'pct', value: 'pct' }, 'En pourcentage / contributions'),
             ]),
           ]),
         ]),
@@ -476,10 +501,10 @@
           h(CardNode, {
             key: rootSector + '|' + rootEntry + '|' + sto + (rootActivity ? '@' + rootActivity : ''),
             sector: rootSector, entry: rootEntry, sto, activity: rootActivity, year, depth: 0,
-            path: 'root', expandedTree, onToggle: handleToggle, unit, onSetRoot: handleSetRoot,
+            path: 'root', expandedTree, onToggle: handleToggle, unit, pctRoot, onSetRoot: handleSetRoot,
           }),
         ]),
-        h(Sidebar, { key: 'sidebar', sector: rootSector, entry: rootEntry, sto, year, expandedTree, unit }),
+        h(Sidebar, { key: 'sidebar', sector: rootSector, entry: rootEntry, sto, year, expandedTree, unit, pctRoot }),
       ]),
       h('p', { className: 'footnote', key: 'foot' },
         "Source : INSEE, comptes nationaux annuels (base 2020), série SDMX DD_CNA_TEE. Les identités comptables (data/formules_TEE.csv) sont calculées pour 2024 puis appliquées à toutes les années disponibles ; pour des années anciennes, certains termes peuvent être indisponibles."

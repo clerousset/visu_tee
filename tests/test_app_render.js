@@ -575,5 +575,122 @@ console.log('\n--- Test du sélecteur "Unités" (en niveau / en delta) ---');
   assert(stoBackToLevel === D6.seed.sto, 'revenir "en niveau" retire le préfixe Δ du badge du poste');
 }
 
+// --- Test de l'unité "pct" (croissance annuelle / contributions) : la
+// carte de départ doit afficher son propre taux de croissance ("... de
+// croissance de ..."), tandis qu'une carte dépliée en dessous doit afficher
+// sa contribution à CETTE croissance ("... de contribution ... à la
+// croissance ..."), avec le même dénominateur (valeur N-1 de la carte de
+// départ) — voir graph.js::getValue et test_graph.js pour la preuve de
+// linéarité de l'identité comptable sur les contributions.
+console.log('\n--- Test de l\'unité "pct" (croissance annuelle / contributions) ---');
+{
+  let curHooks = null, curIdx = 0;
+  function statefulUseState(initial) {
+    const hooks = curHooks;
+    const i = curIdx++;
+    if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial;
+    return [hooks[i], (v) => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }];
+  }
+  const sandbox7 = {
+    console,
+    document: makeFakeDom(),
+    React: { createElement: mockCreateElement, useState: statefulUseState },
+    ReactDOM: { createRoot: () => ({ render: (el) => { sandbox7.__rendered = el; } }) },
+  };
+  sandbox7.window = sandbox7;
+  vm.createContext(sandbox7);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'data', 'tee_graph.js'), 'utf8'), sandbox7);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'graph.js'), 'utf8'), sandbox7);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'app.js'), 'utf8'), sandbox7);
+  const G7 = vm.runInContext('TeeGraphLib', sandbox7).makeGraph(vm.runInContext('TEE_GRAPH', sandbox7));
+  const D7 = vm.runInContext('TEE_GRAPH', sandbox7);
+
+  const hookStores7 = {};
+  function render7(el, pathKey) {
+    if (el === null || el === undefined || typeof el === 'boolean' || typeof el === 'string' || typeof el === 'number') return el;
+    if (Array.isArray(el)) return el.map((e, i) => render7(e, pathKey + '.' + i));
+    if (typeof el !== 'object' || !('type' in el)) return el;
+    const t = el.type;
+    if (typeof t === 'function') {
+      const name = t.displayName || t.name || 'anon';
+      const key = pathKey + '/' + name + (el.props && el.props.key !== undefined ? ':' + el.props.key : '');
+      if (!hookStores7[key]) hookStores7[key] = [];
+      curHooks = hookStores7[key]; curIdx = 0;
+      return { __rendered: render7(t(el.props), key), __el: el };
+    }
+    return { type: t, props: Object.assign({}, el.props, el.props && el.props.children !== undefined ? { children: render7(el.props.children, pathKey + '.c') } : {}) };
+  }
+  function findAll7(node, matchFn, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    if (node.__rendered !== undefined) { findAll7(node.__rendered, matchFn, acc); return acc; }
+    if (Array.isArray(node)) { node.forEach(n => findAll7(n, matchFn, acc)); return acc; }
+    if (matchFn(node)) acc.push(node);
+    if (node.props && node.props.children) findAll7(node.props.children, matchFn, acc);
+    return acc;
+  }
+  function textOf7(n) {
+    if (typeof n === 'string' || typeof n === 'number') return String(n);
+    if (Array.isArray(n)) return n.map(textOf7).join('');
+    if (n && n.__rendered !== undefined) return textOf7(n.__rendered);
+    if (n && n.props && n.props.children !== undefined) return textOf7(n.props.children);
+    return '';
+  }
+  const isSelect7 = n => n.type === 'select';
+  const isPill7 = n => n.type === 'button' && n.props.className && n.props.className.indexOf('pill') === 0;
+
+  let tree7 = render7(sandbox7.__rendered, 'root7');
+  const unitSelect7 = findAll7(tree7, isSelect7)[2];
+  const unitOptionValues7 = unitSelect7.props.children.map(o => o.props.value);
+  assert(unitOptionValues7.indexOf('pct') !== -1, `le sélecteur "Unités" propose "pct" (trouvé ${unitOptionValues7.join(',')})`);
+
+  unitSelect7.props.onChange({ target: { value: 'pct' } });
+  tree7 = render7(sandbox7.__rendered, 'root7');
+
+  const rootSto7 = textOf7(findAll7(tree7, n => n.props && n.props.className === 'card-sto')[0]);
+  assert(rootSto7 === 'Δ%' + D7.seed.sto, `en pct, le badge de la carte racine est préfixé de "Δ%" (trouvé "${rootSto7}")`);
+
+  const rootCardValue7 = textOf7(findAll7(tree7, n => n.props && n.props.className && n.props.className.indexOf('card-value') === 0)[0]);
+  assert(rootCardValue7.indexOf('%') !== -1, `la valeur de la carte racine est formatée en % (trouvé "${rootCardValue7}")`);
+
+  const rootSentence7 = textOf7(findAll7(tree7, n => n.props && n.props.className === 'card-sentence')[0]);
+  assert(rootSentence7.indexOf('croissance') !== -1 && rootSentence7.indexOf('contribution') === -1,
+    `la phrase de la carte racine parle de "croissance", pas de "contribution" (trouvé "${rootSentence7.slice(0, 90)}...")`);
+
+  // vérifie numériquement la valeur affichée sur la carte racine (taux de
+  // croissance usuel : delta / valeur N-1)
+  const seedSeries7 = G7.series(D7.seed.sector, D7.seed.entry, D7.seed.sto);
+  const defaultYear7 = seedSeries7[seedSeries7.length - 1].year;
+  const pctRoot7 = { sector: D7.seed.sector, entry: D7.seed.entry, sto: D7.seed.sto, activity: undefined };
+  const expectedRootPct = G7.getValue(D7.seed.sector, D7.seed.entry, D7.seed.sto, defaultYear7, undefined, 'pct', pctRoot7);
+  assert(expectedRootPct !== null, 'une valeur pct existe pour la graine à l\'année par défaut');
+
+  // déplie la première identité : les cartes enfants doivent parler de
+  // "contribution ... à la croissance", avec le même dénominateur (pctRoot)
+  const pill7 = findAll7(tree7, isPill7)[0];
+  pill7.props.onClick();
+  tree7 = render7(sandbox7.__rendered, 'root7');
+
+  const childSentences7 = findAll7(tree7, n => n.props && n.props.className === 'card-sentence').slice(1).map(textOf7);
+  assert(childSentences7.length > 0, 'au moins une carte enfant est dépliée');
+  assert(childSentences7.every(s => s.indexOf('contribution') !== -1 && s.indexOf('à la croissance') !== -1),
+    `chaque carte enfant parle de "contribution ... à la croissance" (trouvé ex. "${(childSentences7[0] || '').slice(0, 90)}...")`);
+
+  const childSto7 = findAll7(tree7, n => n.props && n.props.className === 'card-sto').slice(1).map(textOf7);
+  assert(childSto7.every(t => t.indexOf('Δ%') === 0), `chaque badge enfant est aussi préfixé de "Δ%" (trouvé ${childSto7.join(',')})`);
+
+  // panneau latéral cohérent : titre préfixé, et le total reconstruit
+  // (somme des contributions) doit être numériquement égal à la croissance
+  // de la carte de départ, par linéarité (voir test_graph.js)
+  const sidebarTitle7 = textOf7(findAll7(tree7, n => n.props && n.props.className === 'sidebar-title')[0]);
+  assert(sidebarTitle7.indexOf('Δ%') !== -1, `le titre du panneau latéral est préfixé de "Δ%" en pct (trouvé "${sidebarTitle7}")`);
+
+  const seedFormulas7 = G7.getFormulasFor(D7.seed.sector, D7.seed.entry, D7.seed.sto);
+  const exp7 = G7.expandFormula(seedFormulas7[0].id, D7.seed.sector, D7.seed.entry, D7.seed.sto, defaultYear7, undefined, 'pct', pctRoot7);
+  const reconstructedPct7 = exp7.others.reduce((acc, m) => acc + m.effectiveSign * m.value, 0);
+  assert(Math.abs(reconstructedPct7 - expectedRootPct) < 0.01,
+    `panneau latéral : somme des contributions ≈ croissance de la carte de départ (reconstruit=${reconstructedPct7.toFixed(4)}, attendu=${expectedRootPct.toFixed(4)})`);
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

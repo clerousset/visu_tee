@@ -25,15 +25,30 @@
       return val === undefined ? null : val;
     }
 
-    // `unit` optionnel ('delta') : différence avec l'année précédente plutôt
-    // que le niveau brut (menu "Unités" de l'UI) ; null si l'une des deux
-    // années manque, comme pour une valeur en niveau absente
-    function getValue(sector, entry, sto, year, activity, unit) {
-      if (unit === 'delta') {
+    // `unit` optionnel : 'delta' (différence avec l'année précédente) ou
+    // 'pct' (cette différence rapportée à une base, en %) plutôt que le
+    // niveau brut (menu "Unités" de l'UI) ; null si une valeur manque, comme
+    // pour une valeur en niveau absente.
+    // `pctRoot` (utilisé seulement si unit === 'pct') : {sector,entry,sto,
+    // activity} de la carte de départ courante — sert de dénominateur
+    // commun à toute la décomposition. Pour la carte de départ elle-même,
+    // pctRoot === son propre poste, donc la formule redonne le taux de
+    // croissance usuel (delta / valeur précédente) ; pour les autres
+    // cartes, le même dénominateur donne leur "contribution" en points :
+    // par linéarité de l'identité comptable (Δroot = Σ signe*Δmembre),
+    // Σ contribution_i = taux de croissance de la racine, à n'importe
+    // quelle profondeur de dépliage.
+    function getValue(sector, entry, sto, year, activity, unit, pctRoot) {
+      if (unit === 'delta' || unit === 'pct') {
         const cur = getRawValue(sector, entry, sto, year, activity);
         const prev = getRawValue(sector, entry, sto, (+year) - 1, activity);
         if (cur === null || prev === null) return null;
-        return cur - prev;
+        const delta = cur - prev;
+        if (unit === 'delta') return delta;
+        if (!pctRoot) return null;
+        const base = getRawValue(pctRoot.sector, pctRoot.entry, pctRoot.sto, (+year) - 1, pctRoot.activity);
+        if (base === null || base === 0) return null;
+        return (delta / base) * 100;
       }
       return getRawValue(sector, entry, sto, year, activity);
     }
@@ -92,7 +107,7 @@
     // sa ventilation par activité du SUT (voir "Ventilation en activité") :
     // les membres d'une telle formule partagent tous le même (sector,entry,
     // sto), seule l'activité les distingue.
-    function expandFormula(id, originSector, originEntry, originSto, year, originActivity, unit) {
+    function expandFormula(id, originSector, originEntry, originSto, year, originActivity, unit, pctRoot) {
       const f = D.formulas[id];
       if (!f) return null;
       const originMember = f.members.find(m => sameMember(m, originSector, originEntry, originSto, originActivity));
@@ -107,7 +122,7 @@
           activity: m.activity || null,
           signe: m.signe,
           effectiveSign: -originSigne * m.signe,
-          value: getValue(m.sector, m.entry, m.sto, year, m.activity, unit),
+          value: getValue(m.sector, m.entry, m.sto, year, m.activity, unit, pctRoot),
         }));
       // les soldes (position "B") passent toujours en premier à l'affichage
       // (tri stable : l'ordre relatif du reste, tel que dans formules_TEE.csv,

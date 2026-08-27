@@ -41,14 +41,24 @@ vérifier la connexion et recharger la page.
   de l'économie totale, année la plus récente). Poste de départ et année
   sont modifiables en haut de page ; les autres secteurs restent
   accessibles en dépliant les identités de ventilation par secteur.
-- Un sélecteur « Unités » en haut de page bascule entre « En niveau »
-  (comportement par défaut) et « En delta (variation annuelle) » : dans ce
-  second mode, chaque carte, équation et le panneau latéral affichent la
-  variation de la valeur par rapport à l'année précédente plutôt que son
-  niveau (les codes de poste sont alors préfixés de « Δ »). L'identité
-  comptable reste valable sur les deltas (la variation d'une somme est la
-  somme des variations), donc les décompositions restent cohérentes dans ce
-  mode.
+- Un sélecteur « Unités » en haut de page propose trois modes :
+  - « En niveau » (par défaut) : comportement historique.
+  - « En delta (variation annuelle) » : chaque carte, équation et le
+    panneau latéral affichent la variation de la valeur par rapport à
+    l'année précédente plutôt que son niveau (codes de poste préfixés de
+    « Δ »).
+  - « En pourcentage / contributions » : la carte de départ affiche son
+    propre taux de croissance annuel (delta / valeur de l'année
+    précédente) ; toutes les autres cartes affichent leur contribution à
+    CETTE croissance (leur propre delta rapporté à la valeur de l'année
+    précédente de la carte de départ, pas à la leur — codes préfixés de
+    « Δ% »). C'est la décomposition usuelle d'un taux de croissance en
+    points de contribution par poste.
+
+  Dans les deux derniers modes, l'identité comptable reste valable (la
+  variation, ou la contribution, d'une somme est la somme des variations ou
+  contributions de ses termes), donc les décompositions et le panneau
+  latéral restent cohérents.
 - Si la valeur affichée participe à une ou plusieurs identités comptables,
   des boutons apparaissent sous la carte, avec le libellé brut de
   `formules_TEE.csv` (ex. « Lien B9 B8 », « Ventilation en sous-secteur »).

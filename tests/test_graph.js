@@ -168,5 +168,48 @@ assert(emptyBar.segments.length === 0 && emptyBar.total === 0, 'stackedBarGeomet
   }
 }
 
+// 9) unité "pct" (menu "Unités") : taux de croissance annuel pour la carte
+// de départ, contribution à CETTE croissance (même dénominateur, la valeur
+// N-1 de la carte de départ) pour les autres — voir graph.js::getValue.
+{
+  const pctRoot = { sector: 'S1', entry: 'B', sto: 'B9', activity: undefined };
+  const level2024 = G.getValue('S1', 'B', 'B9', '2024');
+  const level2023 = G.getValue('S1', 'B', 'B9', '2023');
+  const pct2024 = G.getValue('S1', 'B', 'B9', '2024', undefined, 'pct', pctRoot);
+  const expectedPct = ((level2024 - level2023) / level2023) * 100;
+  assert(pct2024 !== null && Math.abs(pct2024 - expectedPct) < 1e-9,
+    `getValue(..., 'pct', pctRoot=lui-même) = taux de croissance usuel (pct=${pct2024}, attendu=${expectedPct})`);
+
+  // sans pctRoot (dénominateur manquant), ou avec un pctRoot dont la valeur
+  // N-1 est indisponible : null plutôt qu'une exception
+  assert(G.getValue('S1', 'B', 'B9', '2024', undefined, 'pct') === null,
+    "getValue(..., 'pct') sans pctRoot renvoie null");
+  assert(G.getValue('S1', 'B', 'B9', '2024', undefined, 'pct', { sector: 'S1', entry: 'B', sto: 'B9999' }) === null,
+    "getValue(..., 'pct') avec un pctRoot dont la valeur N-1 est indisponible renvoie null");
+
+  // l'identité comptable reste vraie sur les contributions en % (linéarité,
+  // même démonstration que pour le delta, mais rapportée à la même base) :
+  // Σ effectiveSign_i * contribution_i = taux de croissance de la racine
+  if (defB9) {
+    const expPct = G.expandFormula(defB9.id, 'S1', 'B', 'B9', '2024', undefined, 'pct', pctRoot);
+    assert(expPct && expPct.others.every(m => m.value !== null), 'expansion en pct de la définition de B9 a toutes ses valeurs en 2024');
+    if (expPct) {
+      const reconstructedPct = expPct.others.reduce((acc, m) => acc + m.effectiveSign * m.value, 0);
+      const diffPct = Math.abs(reconstructedPct - pct2024);
+      assert(diffPct < 0.01, `identité comptable en pct : croissance(B9) = Σ(contributions) à 2024 (écart=${diffPct.toFixed(4)} point)`);
+
+      // vérifie qu'un membre non-racine est bien rapporté à la base de la
+      // racine (pctRoot), pas à sa propre valeur précédente : sa contribution
+      // = son propre delta / valeur N-1 de B9 (pas de lui-même)
+      const member = expPct.others[0];
+      const memberLevelCur = G.getValue(member.sector, member.entry, member.sto, '2024', member.activity);
+      const memberLevelPrev = G.getValue(member.sector, member.entry, member.sto, '2023', member.activity);
+      const expectedContribution = ((memberLevelCur - memberLevelPrev) / level2023) * 100;
+      assert(Math.abs(member.value - expectedContribution) < 1e-6,
+        `contribution du membre ${member.sto} = son propre delta / valeur N-1 de la racine (trouvé=${member.value}, attendu=${expectedContribution})`);
+    }
+  }
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);
