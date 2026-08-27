@@ -71,8 +71,8 @@
   }
 
   // ---------- Icône + mini-graphique au survol (série annuelle complète) ----------
-  function SeriesHover({ sector, entry, sto, year }) {
-    const s = G.series(sector, entry, sto);
+  function SeriesHover({ sector, entry, sto, year, unit }) {
+    const s = G.series(sector, entry, sto, unit);
     if (s.length < 2) return null; // pas assez de points pour un graphique utile
     const geom = TeeGraphLib.sparklineGeometry(s, { width: 240, height: 84, pad: 10 });
     const current = s.find(p => p.year === year);
@@ -105,25 +105,30 @@
   }
 
   // ---------- Carte ----------
-  function Card({ sector, entry, sto, year, value, effectiveSign, hasFormulas, activity, onSetRoot }) {
+  function Card({ sector, entry, sto, year, value, effectiveSign, hasFormulas, activity, unit, onSetRoot }) {
     const signClass = value === null ? '' : value >= 0 ? 'pos' : 'neg';
+    const isDelta = unit === 'delta';
     const meaningText = lowerFirst(G.stoLabel(sto));
     // les valeurs ventilées par activité (SUT) n'ont pas de série annuelle
     // embarquée sous cette forme : pas de mini-graphique pour ces cartes
-    const seriesHover = activity ? null : h(SeriesHover, { key: 'series', sector, entry, sto, year });
+    const seriesHover = activity ? null : h(SeriesHover, { key: 'series', sector, entry, sto, year, unit });
     const activityPhrase = activity ? ', dans l’activité ' + lowerFirst(G.activityLabel(activity)) : '';
+    // "delta" : la phrase se lit comme une variation entre deux années
+    // plutôt qu'un niveau à une date donnée
+    const quantityPhrase = isDelta ? 'de variation de ' + meaningText : 'de ' + meaningText;
+    const yearPhrase = isDelta ? 'entre ' + (year - 1) + ' et ' + year : 'de ' + year;
 
     const sentence = h('p', { className: 'card-sentence', key: 'sentence' }, [
       h('strong', { className: 'card-value ' + signClass, key: 'val' }, fmtMd(value)),
       ' ',
       seriesHover,
-      ' de ' + meaningText + ' de ' + year,
+      ' ' + quantityPhrase + ' ' + yearPhrase,
       ' pour ' + sectorPhrase(sector) + activityPhrase + '.' + (hasFormulas ? ' Ils peuvent se décomposer :' : ''),
     ]);
 
     const children = [
       h('div', { className: 'card-top', key: 'top' }, [
-        h('span', { className: 'card-sto', key: 'sto' }, sto),
+        h('span', { className: 'card-sto', key: 'sto' }, (isDelta ? 'Δ' : '') + sto),
         activity ? h('span', { className: 'card-activity-badge', key: 'act', title: G.activityLabel(activity) }, activity) : null,
         h('span', { className: 'card-entry-badge entry-' + entry, key: 'entry' }, G.entryLabel(entry)),
         h('button', {
@@ -153,12 +158,13 @@
 
   // équation en toutes lettres (libellés complets, pas les codes STO), pour
   // la bulle affichée au survol d'un bouton de dépliage, avant même de cliquer
-  function formulaPreviewText(exp, sector, sto, entry) {
+  function formulaPreviewText(exp, sector, sto, entry, unit) {
     const parts = exp.others.map(m => {
       const sign = m.effectiveSign > 0 ? '+' : '−';
       return sign + ' ' + termFullLabel(m, sector);
     });
-    return lowerFirst(G.stoLabel(sto)) + ' = ' + parts.join(' ');
+    const lhs = (unit === 'delta' ? 'variation de ' : '') + lowerFirst(G.stoLabel(sto));
+    return lhs + ' = ' + parts.join(' ');
   }
 
   // ---------- Groupe de formule déplié (équation + cartes enfants) ----------
@@ -166,16 +172,19 @@
   // dépliage (ex. "root>F12>S11|D|D7") ; les cartes enfants héritent d'un
   // chemin qui préfixe le leur, ce qui permet à handleToggle() de retrouver
   // et refermer toute une branche d'un coup (voir plus bas).
-  function FormulaGroup({ sector, entry, sto, year, formulaId, depth, path, expandedTree, onToggle, activity, onSetRoot }) {
-    const exp = G.expandFormula(formulaId, sector, entry, sto, year, activity);
+  function FormulaGroup({ sector, entry, sto, year, formulaId, depth, path, expandedTree, onToggle, activity, unit, onSetRoot }) {
+    const exp = G.expandFormula(formulaId, sector, entry, sto, year, activity, unit);
     if (!exp) return null;
+    // en delta, chaque terme de l'équation est lui-même une variation : le
+    // préfixe "Δ" le rappelle sur le code abrégé (ex. "ΔD9R_C")
+    const codePrefix = unit === 'delta' ? 'Δ' : '';
     // chaque terme est une bulle explicative individuelle (title) : le code
     // abrégé (ex. "D9R_C") reste affiché, mais survoler révèle son libellé complet
     const eqNodes = [
       h('span', {
         key: 'lhs', className: 'formula-eq-term',
         title: lowerFirst(G.stoLabel(sto)) + (activity ? ' — ' + lowerFirst(G.activityLabel(activity)) : ''),
-      }, stoWithEntry(sto, entry) + (activity ? ' [' + activity + ']' : '')),
+      }, codePrefix + stoWithEntry(sto, entry) + (activity ? ' [' + activity + ']' : '')),
       ' = ',
     ];
     exp.others.forEach((m, i) => {
@@ -185,7 +194,7 @@
       const activityTag = m.activity ? ' [' + m.activity + ']' : '';
       eqNodes.push(h('span', {
         key: i, className: 'formula-eq-term', title: termFullLabel(m, sector),
-      }, sign + ' ' + stoWithEntry(m.sto, m.entry) + sectorTag + activityTag));
+      }, sign + ' ' + codePrefix + stoWithEntry(m.sto, m.entry) + sectorTag + activityTag));
     });
     return h('div', { className: 'formula-group' }, [
       h('div', { className: 'formula-eq', key: 'eq' }, eqNodes),
@@ -204,6 +213,7 @@
             path: path + '>' + formulaId + '>' + m.sector + '|' + m.entry + '|' + m.sto + (m.activity ? '@' + m.activity : ''),
             expandedTree,
             onToggle,
+            unit,
             onSetRoot,
           })
         )
@@ -216,8 +226,8 @@
   // App (expandedTree), pas en useState local : ainsi, replier une identité
   // referme automatiquement (et proprement, dans le panneau latéral) toutes
   // les sous-décompositions ouvertes en dessous, sans état local à nettoyer.
-  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, path, expandedTree, onToggle, activity, onSetRoot }) {
-    const value = G.getValue(sector, entry, sto, year, activity);
+  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, path, expandedTree, onToggle, activity, unit, onSetRoot }) {
+    const value = G.getValue(sector, entry, sto, year, activity, unit);
     // on ne repropose pas la formule qui a généré cette carte (évite un
     // dépliage trivial "vers le parent" juste après avoir déplié celui-ci)
     const formulas = G.getFormulasFor(sector, entry, sto, year, activity).filter(f => f.id !== excludeFormulaId);
@@ -228,8 +238,8 @@
       formulas.map(f => {
         // bulle explicative : l'équation en toutes lettres, visible avant
         // même de cliquer sur le bouton pour déplier l'identité
-        const exp = G.expandFormula(f.id, sector, entry, sto, year, activity);
-        const preview = exp ? formulaPreviewText(exp, sector, sto, entry) : undefined;
+        const exp = G.expandFormula(f.id, sector, entry, sto, year, activity, unit);
+        const preview = exp ? formulaPreviewText(exp, sector, sto, entry, unit) : undefined;
         return h('button', {
           key: f.id,
           className: 'pill' + (active[f.id] ? ' active' : ''),
@@ -242,11 +252,11 @@
     const groups = Object.keys(active)
       .filter(id => active[id])
       .map(id => h(FormulaGroup, {
-        key: id, sector, entry, sto, year, activity, formulaId: id, depth: depth || 0, path, expandedTree, onToggle, onSetRoot,
+        key: id, sector, entry, sto, year, activity, formulaId: id, depth: depth || 0, path, expandedTree, onToggle, unit, onSetRoot,
       }));
 
     return h('div', { className: 'card-node' }, [
-      h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign, hasFormulas: formulas.length > 0, activity, onSetRoot }),
+      h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign, hasFormulas: formulas.length > 0, activity, unit, onSetRoot }),
       pills,
       groups.length ? h('div', { className: 'groups-stack', key: 'groups' }, groups) : null,
     ]);
@@ -261,15 +271,15 @@
   // graphique, la contribution du poste concerné par ses propres membres.
   // Si plusieurs identités alternatives sont ouvertes sur un même poste, on
   // n'en retient qu'une (la première) pour garder un seul graphe cohérent.
-  function collectLeaves(sector, entry, sto, year, path, expandedTree, effectiveSign, depth, activity) {
+  function collectLeaves(sector, entry, sto, year, path, expandedTree, effectiveSign, depth, activity, unit) {
     const active = (expandedTree[path] && expandedTree[path].active) || {};
     const activeIds = Object.keys(active).filter(id => active[id]);
     if (activeIds.length === 0) {
-      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity), depth }];
+      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity, unit), depth }];
     }
-    const exp = G.expandFormula(activeIds[0], sector, entry, sto, year, activity);
+    const exp = G.expandFormula(activeIds[0], sector, entry, sto, year, activity, unit);
     if (!exp) {
-      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity), depth }];
+      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity, unit), depth }];
     }
     const childPrefix = path + '>' + activeIds[0] + '>';
     const leaves = [];
@@ -277,7 +287,7 @@
       const childPath = childPrefix + m.sector + '|' + m.entry + '|' + m.sto + (m.activity ? '@' + m.activity : '');
       leaves.push(...collectLeaves(
         m.sector, m.entry, m.sto, year, childPath, expandedTree,
-        effectiveSign * m.effectiveSign, depth + 1, m.activity
+        effectiveSign * m.effectiveSign, depth + 1, m.activity, unit
       ));
     });
     return leaves;
@@ -303,14 +313,15 @@
     return kept.concat(missing, [other]);
   }
 
-  function segmentLabel(s, sector) {
+  function segmentLabel(s, sector, unit) {
     if (s.isOther) return 'Autres (' + s.otherCount + ' poste' + (s.otherCount > 1 ? 's' : '') + ')';
-    const base = stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '');
+    const codePrefix = unit === 'delta' ? 'Δ' : '';
+    const base = codePrefix + stoWithEntry(s.sto, s.entry) + (s.sector !== sector ? ' (' + s.sector + ')' : '');
     return s.activity ? base + ' [' + s.activity + ']' : base;
   }
 
-  function Sidebar({ sector, entry, sto, year, expandedTree }) {
-    const leaves = collectLeaves(sector, entry, sto, year, 'root', expandedTree, 1, 0);
+  function Sidebar({ sector, entry, sto, year, expandedTree, unit }) {
+    const leaves = collectLeaves(sector, entry, sto, year, 'root', expandedTree, 1, 0, undefined, unit);
     if (leaves.length <= 1) {
       return h('aside', { className: 'sidebar' }, [
         h('div', { className: 'sidebar-panel', key: 'empty' }, [
@@ -321,7 +332,8 @@
       ]);
     }
 
-    const rootValue = G.getValue(sector, entry, sto, year);
+    const codePrefix = unit === 'delta' ? 'Δ' : '';
+    const rootValue = G.getValue(sector, entry, sto, year, undefined, unit);
     const grouped = groupSmallContributions(leaves, MAX_SIDEBAR_SEGMENTS);
     const bar = TeeGraphLib.stackedBarGeometry(grouped, { width: 64, height: 320, pad: 4 });
 
@@ -338,14 +350,14 @@
         className: 'stack-seg',
         style: { fill: colors[i] },
       }, [
-        h('title', { key: 'tt' }, segmentLabel(s, sector) + ' : ' + fmtMd(s.contribution)),
+        h('title', { key: 'tt' }, segmentLabel(s, sector, unit) + ' : ' + fmtMd(s.contribution)),
       ])
     );
 
     const legend = bar.segments.map((s, i) =>
       h('div', { className: 'legend-item', key: i }, [
         h('span', { className: 'legend-swatch', key: 'sw', style: { background: colors[i] } }),
-        h('span', { className: 'legend-label', key: 'lb' }, segmentLabel(s, sector)),
+        h('span', { className: 'legend-label', key: 'lb' }, segmentLabel(s, sector, unit)),
         h('span', { className: 'legend-value', key: 'val' }, fmtMd(s.contribution)),
       ])
     );
@@ -353,7 +365,7 @@
     return h('aside', { className: 'sidebar' }, [
       h('div', { className: 'sidebar-panel', key: 'panel' }, [
         h('div', { className: 'sidebar-title', key: 't' },
-          'Décomposition de ' + stoWithEntry(sto, entry) + (sector !== D.seed.sector ? ' (' + sector + ')' : '')),
+          'Décomposition de ' + codePrefix + stoWithEntry(sto, entry) + (sector !== D.seed.sector ? ' (' + sector + ')' : '')),
         h('div', { className: 'stacked-bar-row', key: 'row' }, [
           h('svg', {
             key: 'svg', viewBox: '0 0 ' + bar.width + ' ' + bar.height,
@@ -367,7 +379,7 @@
           h('div', { className: 'stacked-bar-legend', key: 'legend' }, legend),
         ]),
         h('div', { className: 'stacked-bar-total', key: 'total' },
-          stoWithEntry(sto, entry) + ' = ' + fmtMd(bar.total) +
+          codePrefix + stoWithEntry(sto, entry) + ' = ' + fmtMd(bar.total) +
           (rootValue !== null ? ' (carte : ' + fmtMd(rootValue) + ')' : '')
         ),
         bar.missing > 0
@@ -388,6 +400,10 @@
     const [sto, setSto] = React.useState(D.seed.sto);
     const [rootActivity, setRootActivity] = React.useState(undefined);
     const [year, setYear] = React.useState(DEFAULT_YEAR);
+    // 'level' (comportement historique) ou 'delta' (variation par rapport à
+    // l'année précédente) ; se propage à toutes les valeurs affichées
+    // (cartes, équations, panneau latéral) via graph.js::getValue/series/expandFormula
+    const [unit, setUnit] = React.useState('level');
     // arbre complet des décompositions actives, à n'importe quelle
     // profondeur : { [path]: { sector, entry, sto, depth, active: {formulaId: bool} } }
     // `path` encode la branche complète (voir FormulaGroup/CardNode), ce qui
@@ -443,6 +459,16 @@
               onChange: (e) => setYear(+e.target.value),
             }, YEARS.map(y => h('option', { key: y, value: y }, y))),
           ]),
+          h('label', { key: 'l3', className: 'inline-label' }, [
+            'Unités ',
+            h('select', {
+              value: unit,
+              onChange: (e) => setUnit(e.target.value),
+            }, [
+              h('option', { key: 'level', value: 'level' }, 'En niveau'),
+              h('option', { key: 'delta', value: 'delta' }, 'En delta (variation annuelle)'),
+            ]),
+          ]),
         ]),
       ]),
       h('div', { className: 'layout', key: 'layout' }, [
@@ -450,10 +476,10 @@
           h(CardNode, {
             key: rootSector + '|' + rootEntry + '|' + sto + (rootActivity ? '@' + rootActivity : ''),
             sector: rootSector, entry: rootEntry, sto, activity: rootActivity, year, depth: 0,
-            path: 'root', expandedTree, onToggle: handleToggle, onSetRoot: handleSetRoot,
+            path: 'root', expandedTree, onToggle: handleToggle, unit, onSetRoot: handleSetRoot,
           }),
         ]),
-        h(Sidebar, { key: 'sidebar', sector: rootSector, entry: rootEntry, sto, year, expandedTree }),
+        h(Sidebar, { key: 'sidebar', sector: rootSector, entry: rootEntry, sto, year, expandedTree, unit }),
       ]),
       h('p', { className: 'footnote', key: 'foot' },
         "Source : INSEE, comptes nationaux annuels (base 2020), série SDMX DD_CNA_TEE. Les identités comptables (data/formules_TEE.csv) sont calculées pour 2024 puis appliquées à toutes les années disponibles ; pour des années anciennes, certains termes peuvent être indisponibles."

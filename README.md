@@ -41,6 +41,14 @@ vérifier la connexion et recharger la page.
   de l'économie totale, année la plus récente). Poste de départ et année
   sont modifiables en haut de page ; les autres secteurs restent
   accessibles en dépliant les identités de ventilation par secteur.
+- Un sélecteur « Unités » en haut de page bascule entre « En niveau »
+  (comportement par défaut) et « En delta (variation annuelle) » : dans ce
+  second mode, chaque carte, équation et le panneau latéral affichent la
+  variation de la valeur par rapport à l'année précédente plutôt que son
+  niveau (les codes de poste sont alors préfixés de « Δ »). L'identité
+  comptable reste valable sur les deltas (la variation d'une somme est la
+  somme des variations), donc les décompositions restent cohérentes dans ce
+  mode.
 - Si la valeur affichée participe à une ou plusieurs identités comptables,
   des boutons apparaissent sous la carte, avec le libellé brut de
   `formules_TEE.csv` (ex. « Lien B9 B8 », « Ventilation en sous-secteur »).

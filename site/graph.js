@@ -10,7 +10,9 @@
   }
 
   function makeGraph(D) {
-    function getValue(sector, entry, sto, year, activity) {
+    // valeur "brute" (en niveau) pour une année donnée ; getValue() s'appuie
+    // dessus pour aussi calculer un delta (voir plus bas)
+    function getRawValue(sector, entry, sto, year, activity) {
       if (activity) {
         const v = ((((D.activityValues || {})[sector] || {})[entry] || {})[sto] || {})[activity];
         if (!v) return null;
@@ -21,6 +23,19 @@
       if (!v) return null;
       const val = v[String(year)];
       return val === undefined ? null : val;
+    }
+
+    // `unit` optionnel ('delta') : différence avec l'année précédente plutôt
+    // que le niveau brut (menu "Unités" de l'UI) ; null si l'une des deux
+    // années manque, comme pour une valeur en niveau absente
+    function getValue(sector, entry, sto, year, activity, unit) {
+      if (unit === 'delta') {
+        const cur = getRawValue(sector, entry, sto, year, activity);
+        const prev = getRawValue(sector, entry, sto, (+year) - 1, activity);
+        if (cur === null || prev === null) return null;
+        return cur - prev;
+      }
+      return getRawValue(sector, entry, sto, year, activity);
     }
 
     function stoLabel(sto) { return D.labelsSto[sto] || sto; }
@@ -34,14 +49,19 @@
       return Object.keys(v).sort((a, b) => +a - +b);
     }
 
-    // série annuelle complète d'un poste, triée par année croissante,
-    // pour affichage en mini-graphique (sparkline)
-    function series(sector, entry, sto) {
+    // série annuelle complète d'un poste, triée par année croissante, pour
+    // affichage en mini-graphique (sparkline) ; `unit` optionnel ('delta')
+    // renvoie la série des variations année sur année plutôt que le niveau
+    function series(sector, entry, sto, unit) {
       const v = ((D.values[sector] || {})[entry] || {})[sto];
       if (!v) return [];
-      return Object.keys(v)
-        .map(y => ({ year: +y, value: v[y] }))
-        .sort((a, b) => a.year - b.year);
+      const years = Object.keys(v).map(y => +y).sort((a, b) => a - b);
+      if (unit === 'delta') {
+        return years
+          .filter(y => v[String(y - 1)] !== undefined)
+          .map(y => ({ year: y, value: v[String(y)] - v[String(y - 1)] }));
+      }
+      return years.map(y => ({ year: y, value: v[String(y)] }));
     }
 
     // formules auxquelles participe le poste (sector,entry,sto[,activity]),
@@ -72,7 +92,7 @@
     // sa ventilation par activité du SUT (voir "Ventilation en activité") :
     // les membres d'une telle formule partagent tous le même (sector,entry,
     // sto), seule l'activité les distingue.
-    function expandFormula(id, originSector, originEntry, originSto, year, originActivity) {
+    function expandFormula(id, originSector, originEntry, originSto, year, originActivity, unit) {
       const f = D.formulas[id];
       if (!f) return null;
       const originMember = f.members.find(m => sameMember(m, originSector, originEntry, originSto, originActivity));
@@ -87,7 +107,7 @@
           activity: m.activity || null,
           signe: m.signe,
           effectiveSign: -originSigne * m.signe,
-          value: getValue(m.sector, m.entry, m.sto, year, m.activity),
+          value: getValue(m.sector, m.entry, m.sto, year, m.activity, unit),
         }));
       // les soldes (position "B") passent toujours en premier à l'affichage
       // (tri stable : l'ordre relatif du reste, tel que dans formules_TEE.csv,

@@ -464,5 +464,116 @@ console.log('\n--- Test du bouton "repartir d\'ici" ---');
   }
 }
 
+// --- Test du sélecteur "Unités" (en niveau / en delta) : simule un clic
+// réel (onChange) pour vérifier que la valeur affichée sur la carte racine
+// change bien vers la variation année sur année, que le badge du poste se
+// préfixe de "Δ", et que le panneau latéral (une fois une identité dépliée)
+// reste cohérent (total ≈ delta de la carte de départ).
+console.log('\n--- Test du sélecteur "Unités" (en niveau / en delta) ---');
+{
+  let curHooks = null, curIdx = 0;
+  function statefulUseState(initial) {
+    const hooks = curHooks;
+    const i = curIdx++;
+    if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial;
+    return [hooks[i], (v) => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }];
+  }
+  const sandbox6 = {
+    console,
+    document: makeFakeDom(),
+    React: { createElement: mockCreateElement, useState: statefulUseState },
+    ReactDOM: { createRoot: () => ({ render: (el) => { sandbox6.__rendered = el; } }) },
+  };
+  sandbox6.window = sandbox6;
+  vm.createContext(sandbox6);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'data', 'tee_graph.js'), 'utf8'), sandbox6);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'graph.js'), 'utf8'), sandbox6);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'app.js'), 'utf8'), sandbox6);
+  const G6 = vm.runInContext('TeeGraphLib', sandbox6).makeGraph(vm.runInContext('TEE_GRAPH', sandbox6));
+  const D6 = vm.runInContext('TEE_GRAPH', sandbox6);
+
+  const hookStores6 = {};
+  function render6(el, pathKey) {
+    if (el === null || el === undefined || typeof el === 'boolean' || typeof el === 'string' || typeof el === 'number') return el;
+    if (Array.isArray(el)) return el.map((e, i) => render6(e, pathKey + '.' + i));
+    if (typeof el !== 'object' || !('type' in el)) return el;
+    const t = el.type;
+    if (typeof t === 'function') {
+      const name = t.displayName || t.name || 'anon';
+      const key = pathKey + '/' + name + (el.props && el.props.key !== undefined ? ':' + el.props.key : '');
+      if (!hookStores6[key]) hookStores6[key] = [];
+      curHooks = hookStores6[key]; curIdx = 0;
+      return { __rendered: render6(t(el.props), key), __el: el };
+    }
+    return { type: t, props: Object.assign({}, el.props, el.props && el.props.children !== undefined ? { children: render6(el.props.children, pathKey + '.c') } : {}) };
+  }
+  function findAll6(node, matchFn, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    if (node.__rendered !== undefined) { findAll6(node.__rendered, matchFn, acc); return acc; }
+    if (Array.isArray(node)) { node.forEach(n => findAll6(n, matchFn, acc)); return acc; }
+    if (matchFn(node)) acc.push(node);
+    if (node.props && node.props.children) findAll6(node.props.children, matchFn, acc);
+    return acc;
+  }
+  function textOf6(n) {
+    if (typeof n === 'string' || typeof n === 'number') return String(n);
+    if (Array.isArray(n)) return n.map(textOf6).join('');
+    if (n && n.__rendered !== undefined) return textOf6(n.__rendered);
+    if (n && n.props && n.props.children !== undefined) return textOf6(n.props.children);
+    return '';
+  }
+  const isSelect6 = n => n.type === 'select';
+  const isPill6 = n => n.type === 'button' && n.props.className && n.props.className.indexOf('pill') === 0;
+
+  let tree6 = render6(sandbox6.__rendered, 'root6');
+  const selects6 = findAll6(tree6, isSelect6);
+  assert(selects6.length === 3, `3 sélecteurs affichés (poste, année, unités) (trouvé ${selects6.length})`);
+  const unitSelect = selects6[2];
+  assert(unitSelect.props.value === 'level', 'le sélecteur "Unités" démarre sur "en niveau"');
+  const unitOptionValues = unitSelect.props.children.map(o => o.props.value);
+  assert(unitOptionValues.indexOf('level') !== -1 && unitOptionValues.indexOf('delta') !== -1,
+    `le sélecteur "Unités" propose "level" et "delta" (trouvé ${unitOptionValues.join(',')})`);
+
+  const sto6 = findAll6(tree6, n => n.props && n.props.className === 'card-sto')[0];
+  assert(textOf6(sto6) === D6.seed.sto, `en niveau, le badge du poste n'a pas de préfixe Δ (trouvé "${textOf6(sto6)}")`);
+  const cardValueBefore = textOf6(findAll6(tree6, n => n.props && n.props.className && n.props.className.indexOf('card-value') === 0)[0]);
+
+  // bascule sur "en delta"
+  unitSelect.props.onChange({ target: { value: 'delta' } });
+  tree6 = render6(sandbox6.__rendered, 'root6');
+
+  const stoAfter = findAll6(tree6, n => n.props && n.props.className === 'card-sto')[0];
+  assert(textOf6(stoAfter) === 'Δ' + D6.seed.sto, `en delta, le badge du poste est préfixé de "Δ" (trouvé "${textOf6(stoAfter)}")`);
+
+  const cardValueAfter = textOf6(findAll6(tree6, n => n.props && n.props.className && n.props.className.indexOf('card-value') === 0)[0]);
+  assert(cardValueAfter !== cardValueBefore,
+    `la valeur affichée change en passant en delta (avant="${cardValueBefore}", après="${cardValueAfter}")`);
+
+  // DEFAULT_YEAR (dernière année disponible) n'est pas exposée hors de
+  // l'IIFE de app.js : on la retrouve via la série de la graine, comme le fait app.js lui-même
+  const seedSeries6 = G6.series(D6.seed.sector, D6.seed.entry, D6.seed.sto);
+  const defaultYear6 = seedSeries6[seedSeries6.length - 1].year;
+  const expectedDelta = G6.getValue(D6.seed.sector, D6.seed.entry, D6.seed.sto, defaultYear6, undefined, 'delta');
+  assert(expectedDelta !== null, 'une valeur delta existe pour la graine à l\'année par défaut');
+  assert(cardValueAfter.indexOf('Md€') !== -1, `la valeur en delta reste formatée en Md€ (trouvé "${cardValueAfter}")`);
+
+  // déplie une identité en delta : le panneau latéral doit rester cohérent
+  // (l'identité comptable reste vraie sur les deltas, voir test_graph.js)
+  const pill = findAll6(tree6, isPill6)[0];
+  pill.props.onClick();
+  tree6 = render6(sandbox6.__rendered, 'root6');
+  const sidebarTitle = textOf6(findAll6(tree6, n => n.props && n.props.className === 'sidebar-title')[0]);
+  assert(sidebarTitle.indexOf('Δ') !== -1, `le titre du panneau latéral est préfixé de "Δ" en delta (trouvé "${sidebarTitle}")`);
+  const eqDiv6 = textOf6(findAll6(tree6, n => n.props && n.props.className === 'formula-eq')[0]);
+  assert(eqDiv6.indexOf('Δ') !== -1, `l'équation dépliée est préfixée de "Δ" sur chaque terme en delta (trouvé "${eqDiv6.slice(0, 60)}...")`);
+
+  // revient "en niveau" : le préfixe Δ disparaît partout
+  unitSelect.props.onChange({ target: { value: 'level' } });
+  tree6 = render6(sandbox6.__rendered, 'root6');
+  const stoBackToLevel = textOf6(findAll6(tree6, n => n.props && n.props.className === 'card-sto')[0]);
+  assert(stoBackToLevel === D6.seed.sto, 'revenir "en niveau" retire le préfixe Δ du badge du poste');
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

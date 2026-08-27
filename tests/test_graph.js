@@ -120,5 +120,53 @@ if (defB9) {
 const emptyBar = Lib.stackedBarGeometry([], { height: 260 });
 assert(emptyBar.segments.length === 0 && emptyBar.total === 0, 'stackedBarGeometry([]) renvoie une géométrie vide cohérente');
 
+// 8) unité "delta" (variation par rapport à l'année précédente) : menu
+// "Unités" de l'UI. getValue/series/expandFormula prennent un `unit`
+// optionnel ('delta') ; par linéarité, l'identité comptable reste vraie
+// sur les deltas (delta d'une somme = somme des deltas).
+{
+  const level2024 = G.getValue('S1', 'B', 'B9', '2024');
+  const level2023 = G.getValue('S1', 'B', 'B9', '2023');
+  const delta2024 = G.getValue('S1', 'B', 'B9', '2024', undefined, 'delta');
+  assert(level2024 !== null && level2023 !== null, 'B9/S1 a une valeur en niveau pour 2023 et 2024');
+  assert(delta2024 !== null && Math.abs(delta2024 - (level2024 - level2023)) < 1e-9,
+    `getValue(..., 'delta') = niveau(année) - niveau(année-1) (delta=${delta2024}, attendu=${level2024 - level2023})`);
+
+  // pas d'année précédente disponible : delta null (comme une valeur en
+  // niveau manquante), sans lever d'exception
+  const firstYear = String(YEARS_MIN());
+  function YEARS_MIN() {
+    // première année disponible pour B9/S1 (déduite de la série, pas d'une
+    // hypothèse sur le millésime de départ des données)
+    const s = G.series('S1', 'B', 'B9');
+    return s[0].year;
+  }
+  const deltaFirstYear = G.getValue('S1', 'B', 'B9', firstYear, undefined, 'delta');
+  assert(deltaFirstYear === null, `getValue(..., 'delta') est null pour la première année disponible (${firstYear}, pas d'année précédente)`);
+
+  // série en delta : un point de moins que la série en niveau (le premier
+  // point n'a pas d'année précédente), et chaque valeur = niveau(y) - niveau(y-1)
+  const levelSeries = G.series('S1', 'B', 'B9');
+  const deltaSeries = G.series('S1', 'B', 'B9', 'delta');
+  assert(deltaSeries.length === levelSeries.length - 1,
+    `série delta a un point de moins que la série en niveau (delta=${deltaSeries.length}, niveau=${levelSeries.length})`);
+  const lastLevel = levelSeries[levelSeries.length - 1];
+  const prevLevel = levelSeries[levelSeries.length - 2];
+  const lastDelta = deltaSeries[deltaSeries.length - 1];
+  assert(lastDelta.year === lastLevel.year && Math.abs(lastDelta.value - (lastLevel.value - prevLevel.value)) < 1e-9,
+    'dernier point de la série delta = dernier niveau - niveau précédent');
+
+  // l'identité comptable reste vraie sur les deltas (linéarité)
+  if (defB9) {
+    const expDelta = G.expandFormula(defB9.id, 'S1', 'B', 'B9', '2024', undefined, 'delta');
+    assert(expDelta && expDelta.others.every(m => m.value !== null), 'expansion en delta de la définition de B9 a toutes ses valeurs en 2024');
+    if (expDelta) {
+      const reconstructedDelta = expDelta.others.reduce((acc, m) => acc + m.effectiveSign * m.value, 0);
+      const diffDelta = Math.abs(reconstructedDelta - delta2024);
+      assert(diffDelta < 5, `identité comptable en delta : Δ(B9) = Σ(Δ termes) à 2024 (écart=${diffDelta.toFixed(2)})`);
+    }
+  }
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);
