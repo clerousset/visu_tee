@@ -692,5 +692,99 @@ console.log('\n--- Test de l\'unité "pct" (croissance annuelle / contributions)
     `panneau latéral : somme des contributions ≈ croissance de la carte de départ (reconstruit=${reconstructedPct7.toFixed(4)}, attendu=${expectedRootPct.toFixed(4)})`);
 }
 
+// --- Test "une seule pill active par carte" : cliquer une pill alors
+// qu'une autre pill de la MÊME carte est déjà active doit désélectionner
+// la précédente (et purger sa sous-décomposition éventuelle), pas empiler
+// les deux décompositions dans le panneau latéral.
+console.log('\n--- Test "une seule pill active par carte" ---');
+{
+  let curHooks = null, curIdx = 0;
+  function statefulUseState(initial) {
+    const hooks = curHooks;
+    const i = curIdx++;
+    if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial;
+    return [hooks[i], (v) => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }];
+  }
+  const sandbox8 = {
+    console,
+    document: makeFakeDom(),
+    React: { createElement: mockCreateElement, useState: statefulUseState },
+    ReactDOM: { createRoot: () => ({ render: (el) => { sandbox8.__rendered = el; } }) },
+  };
+  sandbox8.window = sandbox8;
+  vm.createContext(sandbox8);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'data', 'tee_graph.js'), 'utf8'), sandbox8);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'graph.js'), 'utf8'), sandbox8);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'app.js'), 'utf8'), sandbox8);
+
+  const hookStores8 = {};
+  function render8(el, pathKey) {
+    if (el === null || el === undefined || typeof el === 'boolean' || typeof el === 'string' || typeof el === 'number') return el;
+    if (Array.isArray(el)) return el.map((e, i) => render8(e, pathKey + '.' + i));
+    if (typeof el !== 'object' || !('type' in el)) return el;
+    const t = el.type;
+    if (typeof t === 'function') {
+      const name = t.displayName || t.name || 'anon';
+      const key = pathKey + '/' + name + (el.props && el.props.key !== undefined ? ':' + el.props.key : '');
+      if (!hookStores8[key]) hookStores8[key] = [];
+      curHooks = hookStores8[key]; curIdx = 0;
+      return { __rendered: render8(t(el.props), key), __el: el };
+    }
+    return { type: t, props: Object.assign({}, el.props, el.props && el.props.children !== undefined ? { children: render8(el.props.children, pathKey + '.c') } : {}) };
+  }
+  function findAll8(node, matchFn, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    if (node.__rendered !== undefined) { findAll8(node.__rendered, matchFn, acc); return acc; }
+    if (Array.isArray(node)) { node.forEach(n => findAll8(n, matchFn, acc)); return acc; }
+    if (matchFn(node)) acc.push(node);
+    if (node.props && node.props.children) findAll8(node.props.children, matchFn, acc);
+    return acc;
+  }
+  const isPill8 = n => n.type === 'button' && n.props.className && n.props.className.indexOf('pill') === 0;
+  const isPanel8 = n => n.props && n.props.className && n.props.className.indexOf('sidebar-panel') === 0;
+  const isActive8 = n => n.props.className.indexOf('active') !== -1;
+  // la carte racine est la toute première carte rendue : son "expand-row"
+  // (ligne de pills) est donc le premier de l'arbre, avant celui d'aucune
+  // carte enfant. On y scope la recherche des pills pour ne comparer que
+  // les pills de la MÊME carte d'un rendu à l'autre (au lieu de comparer
+  // par titre, fragile si deux formules ont un intitulé identique).
+  const rootExpandRow8 = tree => findAll8(tree, n => n.props && n.props.className === 'expand-row')[0];
+  const rootPillsOf8 = tree => findAll8(rootExpandRow8(tree), isPill8);
+
+  let tree8 = render8(sandbox8.__rendered, 'root8');
+  let rootPills8 = rootPillsOf8(tree8);
+  assert(rootPills8.length >= 2, `la carte racine (B9/S1) propose au moins 2 identités (trouvé ${rootPills8.length}), nécessaire pour ce test`);
+
+  // ouvre la 1ère identité, puis une sous-décomposition sur une carte enfant
+  rootPills8[0].props.onClick();
+  tree8 = render8(sandbox8.__rendered, 'root8');
+  const childPill8 = findAll8(tree8, isPill8).find(b => rootPillsOf8(tree8).indexOf(b) === -1);
+  if (childPill8) {
+    childPill8.props.onClick();
+    tree8 = render8(sandbox8.__rendered, 'root8');
+    assert(findAll8(tree8, isPanel8).length === 1, "un panneau après ouverture d'une sous-décomposition (préparation du test)");
+  }
+
+  // clique la 2e pill de la carte RACINE (même carte que la 1ère) : la 1ère
+  // doit se désélectionner, avec sa sous-décomposition
+  rootPills8 = rootPillsOf8(tree8);
+  assert(isActive8(rootPills8[0]), "avant le test : la 1ère pill de la racine est active");
+  rootPills8[1].props.onClick();
+  tree8 = render8(sandbox8.__rendered, 'root8');
+
+  const rootPills8After = rootPillsOf8(tree8);
+  assert(rootPills8After.length === 2, 'les 2 pills de la carte racine sont toujours proposées après le changement');
+  assert(!isActive8(rootPills8After[0]), "la 1ère pill (précédemment active) est désélectionnée après le clic sur la 2e");
+  assert(isActive8(rootPills8After[1]), 'la 2e pill (cliquée) est maintenant active');
+  assert(findAll8(tree8, isPanel8).length === 1,
+    "un seul panneau après le changement de pill : pas d'empilement des deux décompositions");
+
+  // reclique la 2e pill pour la refermer : plus aucune pill active sur la racine
+  rootPills8After[1].props.onClick();
+  tree8 = render8(sandbox8.__rendered, 'root8');
+  assert(rootPillsOf8(tree8).every(b => !isActive8(b)), 'aucune pill active sur la racine après avoir refermé la 2e');
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

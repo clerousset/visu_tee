@@ -439,7 +439,16 @@
         const next = Object.assign({}, prev);
         const node = next[path] || { sector: info.sector, entry: info.entry, sto: info.sto, activity: info.activity, depth: info.depth, active: {} };
         const willOpen = !node.active[formulaId];
-        next[path] = Object.assign({}, node, { active: Object.assign({}, node.active, { [formulaId]: willOpen }) });
+        // une seule pill active par carte : ouvrir celle-ci referme toutes
+        // les autres déjà actives sur la même carte (et purge, comme pour
+        // une fermeture normale, leur sous-décomposition éventuelle)
+        Object.keys(node.active).forEach(id => {
+          if (id !== formulaId && node.active[id]) {
+            const otherPrefix = path + '>' + id + '>';
+            Object.keys(next).forEach(k => { if (k.indexOf(otherPrefix) === 0) delete next[k]; });
+          }
+        });
+        next[path] = Object.assign({}, node, { active: willOpen ? { [formulaId]: true } : {} });
         if (!willOpen) {
           // on replie : purge toute la sous-décomposition ouverte en dessous
           const prefix = path + '>' + formulaId + '>';
