@@ -80,7 +80,7 @@ assert(renderedTypeCounts.App === 1, 'le composant App a été rendu');
 assert(renderedTypeCounts.CardNode >= 1, 'au moins un CardNode a été rendu (la carte racine)');
 assert(renderedTypeCounts.Card >= 1, 'au moins une Card a été rendue');
 
-// --- Test direct de FormulaGroup pour la graine (B9, S1) sans passer par le
+// --- Test direct de FormulaGroup pour la graine sans passer par le
 // cycle useState (qui est mocké en no-op), pour vérifier le dépliage lui-même.
 const D = vm.runInContext('TEE_GRAPH', sandbox);
 const G = vm.runInContext('TeeGraphLib', sandbox).makeGraph(D);
@@ -202,29 +202,26 @@ console.log('\n--- Test du panneau latéral (dépliage réel simulé, y compris 
   // bouton "repartir d'ici" (↺) sur chaque carte, btns[0] n'est plus
   // forcément une pill (le bouton ↺ est rendu avant les pills dans le DOM)
   const isPill = n => n.type === 'button' && n.props.className && n.props.className.indexOf('pill') === 0;
+  // la carte racine est la toute première carte rendue : son "expand-row"
+  // (ligne de pills) est donc le premier de l'arbre, ce qui permet de
+  // distinguer ses propres pills de celles apparues sur une carte enfant
+  // après dépliage (indépendamment du poste de départ choisi comme graine)
+  const rootExpandRow3 = tree => findAll3(tree, n => n.props && n.props.className === 'expand-row')[0];
+  const rootPillsOf3 = tree => findAll3(rootExpandRow3(tree), isPill);
 
   let tree3 = render3(sandbox3.__rendered, 'root3');
   assert(findAll3(tree3, isPanel).length === 1, 'panneau vide au départ (aucune décomposition active)');
 
-  let btns = findAll3(tree3, isPill);
+  let btns = rootPillsOf3(tree3);
   btns[0].props.onClick(); // déplie la 1ère identité de la carte racine
   tree3 = render3(sandbox3.__rendered, 'root3');
   assert(findAll3(tree3, isPanel).length === 1, 'un panneau après dépliage de la racine');
 
   // cherche, parmi les cartes désormais visibles, un bouton d'identité sur
   // une carte ENFANT (pas la racine elle-même) pour simuler une sous-décomposition
-  btns = findAll3(tree3, isPill);
-  const childBtn = btns.find(b => {
-    const label = (function textOf(n) {
-      if (typeof n === 'string' || typeof n === 'number') return String(n);
-      if (Array.isArray(n)) return n.map(textOf).join('');
-      if (n && n.__rendered !== undefined) return textOf(n.__rendered);
-      if (n && n.props && n.props.children !== undefined) return textOf(n.props.children);
-      return '';
-    })(b.props.children);
-    return label.indexOf('Lien solde revenus primaires/épargne') !== -1;
-  });
-  assert(!!childBtn, 'un bouton de sous-décomposition ("Lien solde revenus primaires/épargne", ex-"Définition B8G") est visible sur une carte enfant');
+  const rootPillsAfterOpen = rootPillsOf3(tree3);
+  const childBtn = findAll3(tree3, isPill).find(b => rootPillsAfterOpen.indexOf(b) === -1);
+  assert(!!childBtn, "un bouton de sous-décomposition est visible sur une carte enfant, quelle que soit la graine");
   if (childBtn) {
     childBtn.props.onClick();
     tree3 = render3(sandbox3.__rendered, 'root3');
@@ -754,7 +751,8 @@ console.log('\n--- Test "une seule pill active par carte" ---');
 
   let tree8 = render8(sandbox8.__rendered, 'root8');
   let rootPills8 = rootPillsOf8(tree8);
-  assert(rootPills8.length >= 2, `la carte racine (B9/S1) propose au moins 2 identités (trouvé ${rootPills8.length}), nécessaire pour ce test`);
+  const rootPillCount8 = rootPills8.length;
+  assert(rootPillCount8 >= 2, `la carte racine (graine) propose au moins 2 identités (trouvé ${rootPillCount8}), nécessaire pour ce test`);
 
   // ouvre la 1ère identité, puis une sous-décomposition sur une carte enfant
   rootPills8[0].props.onClick();
@@ -774,7 +772,7 @@ console.log('\n--- Test "une seule pill active par carte" ---');
   tree8 = render8(sandbox8.__rendered, 'root8');
 
   const rootPills8After = rootPillsOf8(tree8);
-  assert(rootPills8After.length === 2, 'les 2 pills de la carte racine sont toujours proposées après le changement');
+  assert(rootPills8After.length === rootPillCount8, `les ${rootPillCount8} pills de la carte racine sont toujours proposées après le changement (trouvé ${rootPills8After.length})`);
   assert(!isActive8(rootPills8After[0]), "la 1ère pill (précédemment active) est désélectionnée après le clic sur la 2e");
   assert(isActive8(rootPills8After[1]), 'la 2e pill (cliquée) est maintenant active');
   assert(findAll8(tree8, isPanel8).length === 1,

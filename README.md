@@ -37,9 +37,9 @@ vérifier la connexion et recharger la page.
 
 ## Comment ça marche
 
-- On part d'une carte (par défaut : capacité/besoin de financement — B9 —
-  de l'économie totale, année la plus récente). Poste de départ et année
-  sont modifiables en haut de page ; les autres secteurs restent
+- On part d'une carte (par défaut : rémunération des salariés (emploi) —
+  D1 — de l'économie totale, année la plus récente). Poste de départ et
+  année sont modifiables en haut de page ; les autres secteurs restent
   accessibles en dépliant les identités de ventilation par secteur.
 - Un sélecteur « Unités » en haut de page propose trois modes :
   - « En niveau » (par défaut) : comportement historique.

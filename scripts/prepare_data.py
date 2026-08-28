@@ -30,7 +30,7 @@ SECTEURS = ["S1", "S11", "S12", "S13", "S14", "S15"]
 # solde que l'identité permet de calculer à partir des autres postes)
 DEFINITION_TARGET_PRIORITY = ["B9", "B8G", "B6G", "B5G", "B1G"]
 
-SEED = {"sector": "S1", "entry": "B", "sto": "B9"}
+SEED = {"sector": "S1", "entry": "D", "sto": "D1"}
 
 
 def load_metadata():
