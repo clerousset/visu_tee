@@ -153,7 +153,7 @@
           className: 'card-root-btn', key: 'root',
           title: 'Repartir d’ici : nouvelle décomposition à partir de cette carte',
           onClick: () => onSetRoot({ sector, entry, sto, activity }),
-        }, '⌖'),
+        }, '↺'),
       ]),
       sentence,
     ];

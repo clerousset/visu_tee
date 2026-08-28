@@ -199,8 +199,8 @@ console.log('\n--- Test du panneau latéral (dépliage réel simulé, y compris 
   }
   const isPanel = n => n.props && n.props.className && n.props.className.indexOf('sidebar-panel') === 0;
   // les boutons "pill" (dépliage d'identité) uniquement : depuis l'ajout du
-  // bouton "repartir d'ici" (⌖) sur chaque carte, btns[0] n'est plus
-  // forcément une pill (le bouton ⌖ est rendu avant les pills dans le DOM)
+  // bouton "repartir d'ici" (↺) sur chaque carte, btns[0] n'est plus
+  // forcément une pill (le bouton ↺ est rendu avant les pills dans le DOM)
   const isPill = n => n.type === 'button' && n.props.className && n.props.className.indexOf('pill') === 0;
 
   let tree3 = render3(sandbox3.__rendered, 'root3');
@@ -371,7 +371,7 @@ console.log('\n--- Test de la ventilation par activité (SUT) ---');
   }
 }
 
-// --- Test du bouton "repartir d'ici" (⌖) : chaque carte, y compris une
+// --- Test du bouton "repartir d'ici" (↺) : chaque carte, y compris une
 // carte enfant d'un secteur différent de la graine (S1), doit pouvoir
 // devenir la nouvelle racine — la carte affichée change, le sélecteur
 // "Poste de départ" suit (secteur affiché entre parenthèses si différent de
