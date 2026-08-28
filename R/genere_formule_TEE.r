@@ -53,14 +53,31 @@ ss_ventil = bind_rows(parents_valid, kids_valid) %>%
    arrange(id_formule, formule) %>% select(-parent)
 
 #B3G + B2G = B1G - D1_D -D2_D - D3_D
+# Contrairement aux autres identités, celle-ci n'était pas vérifiée
+# numériquement : elle est fausse pour S1 en 2024 (écart ~309 Md€ : D2/D3
+# y incluent les impôts/subventions sur les PRODUITS (D21/D31), rattachés
+# au niveau de l'économie totale et non de chaque secteur, ce qui casse
+# l'identité de "génération du revenu" par secteur), et B3G (revenu mixte)
+# n'existe que pour S14 (ménages) — les autres secteurs donneraient une
+# équation incomplète. On ne retient donc un secteur que si les 6 postes
+# sont présents et que la somme reconstitue B1G (tolérance < 1).
+b2g_raw = df %>%
+ filter(STO %in% c("B1G", "B2G", "B3G", "D1", "D2", "D3") & ACCOUNTING_ENTRY %in% c('B', 'D'))
 
-b2g = df %>%
- filter(STO %in% c("B1G", "B2G", "B3G", "D1", "D2", "D3") & ACCOUNTING_ENTRY %in% c('B', 'D')) %>%
-   mutate(signe = if_else(STO == "B1G", 1, -1)) %>%
-   group_by(REF_SECTOR) %>% 
-   #summarise(ok = sum(signe * OBS_VALUE))
+b2g_ok = b2g_raw %>%
+  filter(STO != "B1G") %>%
+  group_by(REF_SECTOR) %>%
+  summarise(n = n(), somme = sum(OBS_VALUE, na.rm = TRUE), .groups = "drop") %>%
+  filter(n == 5) %>%
+  inner_join(b2g_raw %>% filter(STO == "B1G") %>% select(REF_SECTOR, OBS_VALUE), by = "REF_SECTOR") %>%
+  filter(abs(somme - OBS_VALUE) < 1)
+
+b2g = b2g_raw %>%
+  semi_join(b2g_ok, by = "REF_SECTOR") %>%
+  mutate(signe = if_else(STO == "B1G", 1, -1)) %>%
+  group_by(REF_SECTOR) %>%
   mutate(formule = "Lien valeur ajoutée/excédent brut d'exploitation", id_formule = cur_group_id()) %>% ungroup() %>%
-   select(-OBS_VALUE)
+  select(-OBS_VALUE)
 
 #B5G = B2G + B3G - D4_D + D4_C + D1_C + D2_C + D3_C
 

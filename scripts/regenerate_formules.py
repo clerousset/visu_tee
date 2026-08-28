@@ -175,15 +175,43 @@ def build_ss_ventil(df):
 
 def build_ebe(df):
     # B1G = B2G + B3G + D1_D + D2_D + D3_D  (signe : B1G=+1, tout le reste -1)
-    rows = [r for r in df if r["STO"] in {"B1G", "B2G", "B3G", "D1", "D2", "D3"} and r["ACCOUNTING_ENTRY"] in ("B", "D")]
+    # Contrairement aux autres identités, celle-ci n'était jusqu'ici pas
+    # vérifiée numériquement — elle est pourtant fausse en 2024 pour S1
+    # (écart ≈ 309 Md€ : D2/D3 y incluent les impôts/subventions sur les
+    # PRODUITS (D21/D31), rattachés au niveau de l'économie totale et non
+    # de chaque secteur, ce qui casse l'identité de "génération du revenu"
+    # par secteur), et B3G (revenu mixte) n'existe que pour S14 (ménages) —
+    # les autres secteurs donneraient de toute façon une équation
+    # incomplète (un terme manquant, pas juste indisponible). On ne retient
+    # donc un secteur que si les 6 postes sont présents et que la somme
+    # reconstitue B1G (tolérance < 1, comme build_ss_secteur/build_ss_ventil).
+    sto_set = {"B1G", "B2G", "B3G", "D1", "D2", "D3"}
+    rows = [r for r in df if r["STO"] in sto_set and r["ACCOUNTING_ENTRY"] in ("B", "D")]
+    by_sector = {}
+    for r in rows:
+        by_sector.setdefault(r["REF_SECTOR"], {})[r["STO"]] = r
+
     get_id = new_id_sequence()
-    return [{
-        "REF_SECTOR": r["REF_SECTOR"], "TIME_PERIOD": r["TIME_PERIOD"],
-        "ACCOUNTING_ENTRY": r["ACCOUNTING_ENTRY"], "STO": r["STO"],
-        "signe": 1 if r["STO"] == "B1G" else -1,
-        "formule": "Lien valeur ajoutée/excédent brut d'exploitation",
-        "id_formule": get_id(r["REF_SECTOR"]),
-    } for r in rows]
+    out = []
+    for sector, by_sto in by_sector.items():
+        if sto_set - by_sto.keys():
+            continue
+        values = {sto: by_sto[sto]["OBS_VALUE"] for sto in sto_set}
+        if any(v is None for v in values.values()):
+            continue
+        total = values["B2G"] + values["B3G"] + values["D1"] + values["D2"] + values["D3"]
+        if abs(total - values["B1G"]) >= 1:
+            continue
+        fid = get_id(sector)
+        for r in by_sto.values():
+            out.append({
+                "REF_SECTOR": r["REF_SECTOR"], "TIME_PERIOD": r["TIME_PERIOD"],
+                "ACCOUNTING_ENTRY": r["ACCOUNTING_ENTRY"], "STO": r["STO"],
+                "signe": 1 if r["STO"] == "B1G" else -1,
+                "formule": "Lien valeur ajoutée/excédent brut d'exploitation",
+                "id_formule": fid,
+            })
+    return out
 
 
 def build_signe_target_or_D(df, sto_set, target_sto, label, extra_filter=None):
