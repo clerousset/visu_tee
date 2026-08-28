@@ -87,12 +87,17 @@
     // classiques n'ont pas de champ `years` et restent toujours proposées.
     function getFormulasFor(sector, entry, sto, year, activity) {
       const ids = D.index[keyOf(sector, entry, sto, activity)] || [];
-      return ids
+      const formulas = ids
         .filter(id => {
           const years = D.formulas[id].years;
           return !years || years.indexOf(String(year)) !== -1;
         })
         .map(id => ({ id, label: D.formulas[id].label, size: D.formulas[id].members.length }));
+      // les ventilations (même poste, décomposé par secteur/catégorie/
+      // activité) sont proposées avant les liens vers un autre solde (tri
+      // stable : l'ordre relatif au sein de chaque catégorie est conservé)
+      formulas.sort((a, b) => (a.label.indexOf('Ventilation') === 0 ? 0 : 1) - (b.label.indexOf('Ventilation') === 0 ? 0 : 1));
+      return formulas;
     }
 
     function sameMember(m, sector, entry, sto, activity) {
