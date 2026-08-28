@@ -76,35 +76,54 @@ def new_id_sequence():
 
 
 def build_ss_secteur(df):
-    by_sector = [r for r in df if r["REF_SECTOR"] != "S1"]
-    sums = {}
-    for r in by_sector:
-        k = (r["ACCOUNTING_ENTRY"], r["STO"])
-        sums[k] = sums.get(k, 0.0) + (r["OBS_VALUE"] or 0.0)
+    # décomposition en sous-secteur, à n'importe quel niveau d'emboîtement
+    # de la nomenclature REF_SECTOR (ex. S1 = S11+S12+...+S15, et
+    # séparément S13 = S131+S132 si de tels codes sont un jour présents
+    # dans les données) : même principe que build_ss_ventil, mais appliqué
+    # à REF_SECTOR plutôt qu'à STO — le "parent" d'un secteur est son
+    # propre code privé de son dernier caractère (S131 -> S13 -> S1) ; un
+    # bloc n'est retenu que si ce parent existe bien comme secteur observé,
+    # que la somme de ses enfants directs reconstitue sa valeur (tolérance
+    # < 1), et que le poste n'est pas dans LISTE_EXCLUS. Avec le jeu de
+    # secteurs actuel (S1, S11..S15), ceci redonne exactement l'ancienne
+    # décomposition à un seul niveau (S11..S15 sont tous enfants directs de S1).
+    by_key = {(r["ACCOUNTING_ENTRY"], r["STO"], r["TIME_PERIOD"], r["REF_SECTOR"]): r for r in df}
 
-    s1_rows = {(r["ACCOUNTING_ENTRY"], r["STO"]): r for r in df if r["REF_SECTOR"] == "S1"}
-
-    valid_keys = set()
-    for k, total in sums.items():
-        s1 = s1_rows.get(k)
-        if s1 is None or s1["OBS_VALUE"] is None:
+    children_by_parent = {}
+    for r in df:
+        sector = r["REF_SECTOR"]
+        if len(sector) < 3:
             continue
-        if abs(total - s1["OBS_VALUE"]) < 1 and s1["STO"] not in LISTE_EXCLUS:
-            valid_keys.add(k)
+        parent = sector[:-1]
+        k = (r["ACCOUNTING_ENTRY"], r["STO"], r["TIME_PERIOD"], parent)
+        if k not in by_key:
+            continue
+        children_by_parent.setdefault(k, []).append(r)
 
     get_id = new_id_sequence()
     out = []
-    for r in df:
-        k = (r["ACCOUNTING_ENTRY"], r["STO"])
-        if k not in valid_keys:
+    for k, kids in children_by_parent.items():
+        entry, sto, time_period, parent = k
+        if sto in LISTE_EXCLUS:
             continue
+        parent_row = by_key[k]
+        if parent_row["OBS_VALUE"] is None:
+            continue
+        total = sum((c["OBS_VALUE"] or 0.0) for c in kids)
+        if abs(total - parent_row["OBS_VALUE"]) >= 1:
+            continue
+        fid = get_id(k)
         out.append({
-            "REF_SECTOR": r["REF_SECTOR"], "TIME_PERIOD": r["TIME_PERIOD"],
-            "ACCOUNTING_ENTRY": r["ACCOUNTING_ENTRY"], "STO": r["STO"],
-            "signe": 1 if r["REF_SECTOR"] == "S1" else -1,
-            "formule": "Ventilation en sous-secteur",
-            "id_formule": get_id(k),
+            "REF_SECTOR": parent, "TIME_PERIOD": time_period,
+            "ACCOUNTING_ENTRY": entry, "STO": sto,
+            "signe": 1, "formule": "Ventilation en sous-secteur", "id_formule": fid,
         })
+        for c in kids:
+            out.append({
+                "REF_SECTOR": c["REF_SECTOR"], "TIME_PERIOD": time_period,
+                "ACCOUNTING_ENTRY": entry, "STO": sto,
+                "signe": -1, "formule": "Ventilation en sous-secteur", "id_formule": fid,
+            })
     return out
 
 
