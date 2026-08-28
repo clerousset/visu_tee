@@ -516,7 +516,7 @@
         h(Sidebar, { key: 'sidebar', sector: rootSector, entry: rootEntry, sto, year, expandedTree, unit, pctRoot }),
       ]),
       h('p', { className: 'footnote', key: 'foot' },
-        "Source : INSEE, comptes nationaux annuels (base 2020), série SDMX DD_CNA_TEE. Les identités comptables (data/formules_TEE.csv) sont calculées pour 2024 puis appliquées à toutes les années disponibles ; pour des années anciennes, certains termes peuvent être indisponibles."
+        "Source : INSEE, comptes nationaux annuels (base 2020), fichiers Melodi DD_CNA_TEE et DD_CNA_SUT. Les identités comptables sont calculées pour 2024 puis appliquées à toutes les années disponibles ; pour des années anciennes, certains termes peuvent être indisponibles."
       ),
     ]);
   }
