@@ -127,12 +127,15 @@
 "S1",2024,"C","D4",-1,"Lien solde des revenus primaires/excédent brut d'exploitation",1
 "S1",2024,"C","D2",-1,"Lien solde des revenus primaires/excédent brut d'exploitation",1
 "S1",2024,"B","B5G",1,"Lien solde des revenus primaires/excédent brut d'exploitation",1
-"S14",2024,"D","D1",-1,"Lien valeur ajoutée/excédent brut d'exploitation",1
-"S14",2024,"B","B1G",1,"Lien valeur ajoutée/excédent brut d'exploitation",1
-"S14",2024,"B","B2G",-1,"Lien valeur ajoutée/excédent brut d'exploitation",1
-"S14",2024,"B","B3G",-1,"Lien valeur ajoutée/excédent brut d'exploitation",1
-"S14",2024,"D","D3",-1,"Lien valeur ajoutée/excédent brut d'exploitation",1
-"S14",2024,"D","D2",-1,"Lien valeur ajoutée/excédent brut d'exploitation",1
+"S1",2024,"D","D1",-1,"Lien PIB/excédent brut d'exploitation",1
+"S1",2024,"D","D2",-1,"Lien PIB/excédent brut d'exploitation",1
+"S1",2024,"D","D3",-1,"Lien PIB/excédent brut d'exploitation",1
+"S1",2024,"B","B1GQ",1,"Lien PIB/excédent brut d'exploitation",1
+"S1",2024,"B","B3G",-1,"Lien PIB/excédent brut d'exploitation",1
+"S1",2024,"B","B2G",-1,"Lien PIB/excédent brut d'exploitation",1
+"S1",2024,"B","B1G",-1,"Lien PIB/valeur ajoutée",1
+"S1",2024,"B","B1GQ",1,"Lien PIB/valeur ajoutée",1
+"S1",2024,"C","D21X31",-1,"Lien PIB/valeur ajoutée",1
 "S1",2024,"D","P3",1,"Ventilation en sous-catégorie",1
 "S1",2024,"D","P31",-1,"Ventilation en sous-catégorie",1
 "S1",2024,"D","P32",-1,"Ventilation en sous-catégorie",1

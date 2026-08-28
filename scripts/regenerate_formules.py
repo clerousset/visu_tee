@@ -174,18 +174,16 @@ def build_ss_ventil(df):
 
 
 def build_ebe(df):
-    # B1G = B2G + B3G + D1_D + D2_D + D3_D  (signe : B1G=+1, tout le reste -1)
-    # Contrairement aux autres identités, celle-ci n'était jusqu'ici pas
-    # vérifiée numériquement — elle est pourtant fausse en 2024 pour S1
-    # (écart ≈ 309 Md€ : D2/D3 y incluent les impôts/subventions sur les
-    # PRODUITS (D21/D31), rattachés au niveau de l'économie totale et non
-    # de chaque secteur, ce qui casse l'identité de "génération du revenu"
-    # par secteur), et B3G (revenu mixte) n'existe que pour S14 (ménages) —
-    # les autres secteurs donneraient de toute façon une équation
-    # incomplète (un terme manquant, pas juste indisponible). On ne retient
-    # donc un secteur que si les 6 postes sont présents et que la somme
-    # reconstitue B1G (tolérance < 1, comme build_ss_secteur/build_ss_ventil).
-    sto_set = {"B1G", "B2G", "B3G", "D1", "D2", "D3"}
+    # B1GQ = B2G + B3G + D1_D + D2_D + D3_D  (signe : B1GQ=+1, tout le reste -1)
+    # La cible était historiquement B1G (valeur ajoutée), mais D2/D3 tels
+    # qu'enregistrés ici incluent les impôts/subventions sur les PRODUITS
+    # (D21/D31, rattachés au niveau de l'économie totale, pas par secteur) :
+    # la somme reconstitue en réalité B1GQ (le PIB, B1G + D21X31 — voir
+    # build_b1gq), pas B1G. B1GQ n'existe que pour S1 (PIB = concept
+    # d'économie totale) : cette identité ne sera donc validée que pour S1.
+    # On ne retient un secteur que si les 6 postes sont présents et que la
+    # somme reconstitue B1GQ (tolérance < 1, comme build_ss_secteur/build_ss_ventil).
+    sto_set = {"B1GQ", "B2G", "B3G", "D1", "D2", "D3"}
     rows = [r for r in df if r["STO"] in sto_set and r["ACCOUNTING_ENTRY"] in ("B", "D")]
     by_sector = {}
     for r in rows:
@@ -200,15 +198,48 @@ def build_ebe(df):
         if any(v is None for v in values.values()):
             continue
         total = values["B2G"] + values["B3G"] + values["D1"] + values["D2"] + values["D3"]
-        if abs(total - values["B1G"]) >= 1:
+        if abs(total - values["B1GQ"]) >= 1:
             continue
         fid = get_id(sector)
         for r in by_sto.values():
             out.append({
                 "REF_SECTOR": r["REF_SECTOR"], "TIME_PERIOD": r["TIME_PERIOD"],
                 "ACCOUNTING_ENTRY": r["ACCOUNTING_ENTRY"], "STO": r["STO"],
-                "signe": 1 if r["STO"] == "B1G" else -1,
-                "formule": "Lien valeur ajoutée/excédent brut d'exploitation",
+                "signe": 1 if r["STO"] == "B1GQ" else -1,
+                "formule": "Lien PIB/excédent brut d'exploitation",
+                "id_formule": fid,
+            })
+    return out
+
+
+def build_b1gq(df):
+    # B1GQ = B1G + D21X31  (PIB = valeur ajoutée + impôts nets des
+    # subventions sur les produits). D21X31 n'est enregistré que pour S1
+    # (concept d'économie totale) : cette identité n'est donc validée que
+    # pour S1, comme build_ebe désormais rattaché à B1GQ.
+    sto_set = {"B1GQ", "B1G", "D21X31"}
+    rows = [r for r in df if r["STO"] in sto_set]
+    by_sector = {}
+    for r in rows:
+        by_sector.setdefault(r["REF_SECTOR"], {})[r["STO"]] = r
+
+    get_id = new_id_sequence()
+    out = []
+    for sector, by_sto in by_sector.items():
+        if sto_set - by_sto.keys():
+            continue
+        values = {sto: by_sto[sto]["OBS_VALUE"] for sto in sto_set}
+        if any(v is None for v in values.values()):
+            continue
+        if abs((values["B1G"] + values["D21X31"]) - values["B1GQ"]) >= 1:
+            continue
+        fid = get_id(sector)
+        for r in by_sto.values():
+            out.append({
+                "REF_SECTOR": r["REF_SECTOR"], "TIME_PERIOD": r["TIME_PERIOD"],
+                "ACCOUNTING_ENTRY": r["ACCOUNTING_ENTRY"], "STO": r["STO"],
+                "signe": 1 if r["STO"] == "B1GQ" else -1,
+                "formule": "Lien PIB/valeur ajoutée",
                 "id_formule": fid,
             })
     return out
@@ -250,13 +281,14 @@ def main():
 
     ss_secteur = build_ss_secteur(df)
     ss_ventil = build_ss_ventil(df)
+    b1gq = build_b1gq(df)
     b2g = build_ebe(df)
     b5g = build_b5g(df)
     b6g = build_signe_target_or_D(df, {"B6G", "B5G", "D6", "D7"}, "B6G", "Lien revenu disponible/solde revenus primaires")
     b8g = build_signe_target_or_D(df, {"B8G", "B6G", "P3", "D8"}, "B8G", "Lien solde revenus primaires/épargne")
     b9g = build_signe_target_or_D(df, {"B9", "B8G", "P5", "D9R", "D9P", "NP"}, "B9", "Lien épargne/capacité ou besoin de financement")
 
-    all_rows = b9g + b8g + b6g + b5g + b2g + ss_ventil + ss_secteur
+    all_rows = b9g + b8g + b6g + b5g + b2g + b1gq + ss_ventil + ss_secteur
 
     # Même convention de guillemets que write.csv() en R : les colonnes
     # texte sont entre guillemets, les colonnes numériques ne le sont pas.

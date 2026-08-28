@@ -52,31 +52,52 @@ ss_ventil = bind_rows(parents_valid, kids_valid) %>%
    mutate(id_formule = cur_group_id()) %>% ungroup() %>%
    arrange(id_formule, formule) %>% select(-parent)
 
-#B3G + B2G = B1G - D1_D -D2_D - D3_D
-# Contrairement aux autres identités, celle-ci n'était pas vérifiée
-# numériquement : elle est fausse pour S1 en 2024 (écart ~309 Md€ : D2/D3
-# y incluent les impôts/subventions sur les PRODUITS (D21/D31), rattachés
-# au niveau de l'économie totale et non de chaque secteur, ce qui casse
-# l'identité de "génération du revenu" par secteur), et B3G (revenu mixte)
-# n'existe que pour S14 (ménages) — les autres secteurs donneraient une
-# équation incomplète. On ne retient donc un secteur que si les 6 postes
-# sont présents et que la somme reconstitue B1G (tolérance < 1).
+#B3G + B2G = B1GQ - D1_D -D2_D - D3_D
+# La cible était historiquement B1G (valeur ajoutée), mais D2/D3 tels
+# qu'enregistrés ici incluent les impôts/subventions sur les PRODUITS
+# (D21/D31, rattachés au niveau de l'économie totale, pas par secteur) :
+# la somme reconstitue en réalité B1GQ (le PIB, B1G + D21X31 — voir
+# b1gq ci-dessous), pas B1G. B1GQ n'existe que pour S1 (PIB = concept
+# d'économie totale) : cette identité n'est donc validée que pour S1.
+# On ne retient un secteur que si les 6 postes sont présents et que la
+# somme reconstitue B1GQ (tolérance < 1).
 b2g_raw = df %>%
- filter(STO %in% c("B1G", "B2G", "B3G", "D1", "D2", "D3") & ACCOUNTING_ENTRY %in% c('B', 'D'))
+ filter(STO %in% c("B1GQ", "B2G", "B3G", "D1", "D2", "D3") & ACCOUNTING_ENTRY %in% c('B', 'D'))
 
 b2g_ok = b2g_raw %>%
-  filter(STO != "B1G") %>%
+  filter(STO != "B1GQ") %>%
   group_by(REF_SECTOR) %>%
   summarise(n = n(), somme = sum(OBS_VALUE, na.rm = TRUE), .groups = "drop") %>%
   filter(n == 5) %>%
-  inner_join(b2g_raw %>% filter(STO == "B1G") %>% select(REF_SECTOR, OBS_VALUE), by = "REF_SECTOR") %>%
+  inner_join(b2g_raw %>% filter(STO == "B1GQ") %>% select(REF_SECTOR, OBS_VALUE), by = "REF_SECTOR") %>%
   filter(abs(somme - OBS_VALUE) < 1)
 
 b2g = b2g_raw %>%
   semi_join(b2g_ok, by = "REF_SECTOR") %>%
-  mutate(signe = if_else(STO == "B1G", 1, -1)) %>%
+  mutate(signe = if_else(STO == "B1GQ", 1, -1)) %>%
   group_by(REF_SECTOR) %>%
-  mutate(formule = "Lien valeur ajoutée/excédent brut d'exploitation", id_formule = cur_group_id()) %>% ungroup() %>%
+  mutate(formule = "Lien PIB/excédent brut d'exploitation", id_formule = cur_group_id()) %>% ungroup() %>%
+  select(-OBS_VALUE)
+
+# B1GQ = B1G + D21X31 (PIB = valeur ajoutée + impôts nets des subventions
+# sur les produits). D21X31 n'est enregistré que pour S1 : cette identité
+# n'est donc, elle aussi, validée que pour S1.
+b1gq_raw = df %>%
+  filter(STO %in% c("B1GQ", "B1G", "D21X31"))
+
+b1gq_ok = b1gq_raw %>%
+  filter(STO %in% c("B1G", "D21X31")) %>%
+  group_by(REF_SECTOR) %>%
+  summarise(n = n(), somme = sum(OBS_VALUE, na.rm = TRUE), .groups = "drop") %>%
+  filter(n == 2) %>%
+  inner_join(b1gq_raw %>% filter(STO == "B1GQ") %>% select(REF_SECTOR, OBS_VALUE), by = "REF_SECTOR") %>%
+  filter(abs(somme - OBS_VALUE) < 1)
+
+b1gq = b1gq_raw %>%
+  semi_join(b1gq_ok, by = "REF_SECTOR") %>%
+  mutate(signe = if_else(STO == "B1GQ", 1, -1)) %>%
+  group_by(REF_SECTOR) %>%
+  mutate(formule = "Lien PIB/valeur ajoutée", id_formule = cur_group_id()) %>% ungroup() %>%
   select(-OBS_VALUE)
 
 #B5G = B2G + B3G - D4_D + D4_C + D1_C + D2_C + D3_C
@@ -119,7 +140,7 @@ b8g = df %>%
    mutate(formule = "Lien épargne/capacité ou besoin de financement", id_formule = cur_group_id()) %>% ungroup() %>%
    select(-OBS_VALUE)     
 
-rbind(b9g, b8g, b6g, b5g, b2g, ss_ventil, ss_secteur) %>%
+rbind(b9g, b8g, b6g, b5g, b2g, b1gq, ss_ventil, ss_secteur) %>%
    select(REF_SECTOR, TIME_PERIOD, ACCOUNTING_ENTRY, STO, signe, formule, id_formule) %>%
    write.csv("data/formules_TEE.csv", row.names = FALSE)
 
