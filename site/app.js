@@ -80,6 +80,35 @@
     return options;
   }
 
+  // tous les agrégats proposables (tous secteurs confondus), pour la barre
+  // de recherche en haut de page : calculé une seule fois, D.values ne
+  // change pas en cours d'exécution
+  const ALL_POSTE_OPTIONS = (() => {
+    const options = [];
+    (D.secteurs || []).forEach(sector => {
+      const bySector = D.values[sector] || {};
+      ROOT_ENTRY_ORDER.forEach(entry => {
+        Object.keys(bySector[entry] || {}).sort().forEach(sto => options.push({ sector, entry, sto }));
+      });
+    });
+    return options;
+  })();
+
+  // recherche insensible à la casse/aux accents (ex. "impots" doit trouver
+  // "impôts") sur le code, le libellé du poste, le secteur et la position
+  function normalize(str) {
+    let out = '';
+    for (const ch of (str || '').normalize('NFD')) {
+      const code = ch.codePointAt(0);
+      if (code >= 0x0300 && code <= 0x036f) continue; // marque diacritique combinante
+      out += ch;
+    }
+    return out.toLowerCase();
+  }
+  function posteSearchText(o) {
+    return normalize([o.sto, G.stoLabel(o.sto), G.sectorLabel(o.sector), G.entryLabel(o.entry)].join(' '));
+  }
+
   // ---------- Icône + mini-graphique au survol (série annuelle complète) ----------
   function SeriesHover({ sector, entry, sto, year, unit }) {
     const s = G.series(sector, entry, sto, unit);
@@ -408,6 +437,35 @@
     ]);
   }
 
+  // barre de recherche (tous secteurs confondus) proposant des agrégats au
+  // fil de la frappe ; sélectionner une suggestion re-racine l'application
+  // dessus (même effet que "repartir d'ici", voir onSelect) et vide la
+  // recherche pour la suivante — ce n'est pas un affichage persistant du
+  // poste courant, juste un outil de saut rapide
+  function PosteSearch({ onSelect }) {
+    const [query, setQuery] = React.useState('');
+    const q = normalize(query);
+    const suggestions = q ? ALL_POSTE_OPTIONS.filter(o => posteSearchText(o).indexOf(q) !== -1).slice(0, 20) : [];
+    return h('div', { className: 'poste-search' }, [
+      h('input', {
+        key: 'input',
+        type: 'text',
+        className: 'poste-search-input',
+        placeholder: 'Rechercher un agrégat (ex. PIB, D1, valeur ajoutée, impôts...)',
+        value: query,
+        onChange: (e) => setQuery(e.target.value),
+      }),
+      suggestions.length > 0
+        ? h('ul', { className: 'poste-search-suggestions', key: 'list' },
+          suggestions.map(o => h('li', {
+            key: o.sector + '|' + o.entry + '|' + o.sto,
+            className: 'poste-search-item',
+            onClick: () => { onSelect(o); setQuery(''); },
+          }, o.sto + ' — ' + lowerFirst(G.stoLabel(o.sto)) + ' (' + G.sectorLabel(o.sector) + ', ' + lowerFirst(G.entryLabel(o.entry)) + ')')))
+        : null,
+    ]);
+  }
+
   // ---------- Application ----------
   function App() {
     // la racine était jusque-là toujours dans le secteur de la graine (S1) :
@@ -473,6 +531,7 @@
 
     return h('div', { className: 'app-wrap' }, [
       h('div', { className: 'controls', key: 'controls' }, [
+        h(PosteSearch, { key: 'search', onSelect: handleSetRoot }),
         h('div', { className: 'row-controls', key: 'row' }, [
           h('label', { key: 'l1', className: 'inline-label' }, [
             'Poste de départ' + (rootSector !== D.seed.sector ? ' (' + G.sectorLabel(rootSector) + ')' : '') + ' ',

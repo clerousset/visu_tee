@@ -41,6 +41,10 @@ vérifier la connexion et recharger la page.
   D1 — de l'économie totale, année la plus récente). Poste de départ et
   année sont modifiables en haut de page ; les autres secteurs restent
   accessibles en dépliant les identités de ventilation par secteur.
+- Une barre de recherche en haut de page propose des agrégats (tous
+  secteurs confondus) au fil de la frappe, insensible aux accents/à la
+  casse (code, libellé, secteur ou position) ; cliquer une suggestion
+  re-part directement sur cette carte, comme le bouton « repartir d'ici ».
 - Un sélecteur « Unités » en haut de page propose trois modes :
   - « En niveau » (par défaut) : comportement historique.
   - « En delta (variation annuelle) » : chaque carte, équation et le

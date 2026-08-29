@@ -784,5 +784,86 @@ console.log('\n--- Test "une seule pill active par carte" ---');
   assert(rootPillsOf8(tree8).every(b => !isActive8(b)), 'aucune pill active sur la racine après avoir refermé la 2e');
 }
 
+console.log('\n--- Test de la barre de recherche d\'agrégats ---');
+{
+  let curHooks = null, curIdx = 0;
+  function statefulUseState(initial) {
+    const hooks = curHooks;
+    const i = curIdx++;
+    if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial;
+    return [hooks[i], (v) => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }];
+  }
+  const sandbox9 = {
+    console,
+    document: makeFakeDom(),
+    React: { createElement: mockCreateElement, useState: statefulUseState },
+    ReactDOM: { createRoot: () => ({ render: (el) => { sandbox9.__rendered = el; } }) },
+  };
+  sandbox9.window = sandbox9;
+  vm.createContext(sandbox9);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'data', 'tee_graph.js'), 'utf8'), sandbox9);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'graph.js'), 'utf8'), sandbox9);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'app.js'), 'utf8'), sandbox9);
+
+  const hookStores9 = {};
+  function render9(el, pathKey) {
+    if (el === null || el === undefined || typeof el === 'boolean' || typeof el === 'string' || typeof el === 'number') return el;
+    if (Array.isArray(el)) return el.map((e, i) => render9(e, pathKey + '.' + i));
+    if (typeof el !== 'object' || !('type' in el)) return el;
+    const t = el.type;
+    if (typeof t === 'function') {
+      const name = t.displayName || t.name || 'anon';
+      const key = pathKey + '/' + name + (el.props && el.props.key !== undefined ? ':' + el.props.key : '');
+      if (!hookStores9[key]) hookStores9[key] = [];
+      curHooks = hookStores9[key]; curIdx = 0;
+      return { __rendered: render9(t(el.props), key), __el: el };
+    }
+    return { type: t, props: Object.assign({}, el.props, el.props && el.props.children !== undefined ? { children: render9(el.props.children, pathKey + '.c') } : {}) };
+  }
+  function findAll9(node, matchFn, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    if (node.__rendered !== undefined) { findAll9(node.__rendered, matchFn, acc); return acc; }
+    if (Array.isArray(node)) { node.forEach(n => findAll9(n, matchFn, acc)); return acc; }
+    if (matchFn(node)) acc.push(node);
+    if (node.props && node.props.children) findAll9(node.props.children, matchFn, acc);
+    return acc;
+  }
+  function textOf9(n) {
+    if (typeof n === 'string' || typeof n === 'number') return String(n);
+    if (Array.isArray(n)) return n.map(textOf9).join('');
+    if (n && n.__rendered !== undefined) return textOf9(n.__rendered);
+    if (n && n.props && n.props.children !== undefined) return textOf9(n.props.children);
+    return '';
+  }
+  const isSearchInput9 = n => n.type === 'input' && n.props.className === 'poste-search-input';
+  const isSuggestions9 = n => n.props && n.props.className === 'poste-search-suggestions';
+  const isSuggestionItem9 = n => n.type === 'li' && n.props.className === 'poste-search-item';
+  const isCardSto9 = n => n.props && n.props.className === 'card-sto';
+
+  let tree9 = render9(sandbox9.__rendered, 'root9');
+  assert(findAll9(tree9, isSearchInput9).length === 1, 'la barre de recherche est affichée en haut de page');
+  assert(findAll9(tree9, isSuggestions9).length === 0, 'aucune suggestion tant que la recherche est vide');
+
+  // recherche insensible aux accents : "impots" doit trouver "Autres impôts
+  // sur la production" (D29)
+  let searchInput9 = findAll9(tree9, isSearchInput9)[0];
+  searchInput9.props.onChange({ target: { value: 'impots' } });
+  tree9 = render9(sandbox9.__rendered, 'root9');
+  let suggestions9 = findAll9(tree9, isSuggestionItem9);
+  assert(suggestions9.length > 0, `taper "impots" propose des suggestions (trouvé ${suggestions9.length})`);
+  const d29Item9 = suggestions9.find(s => textOf9(s.props.children).indexOf('D29') !== -1);
+  assert(!!d29Item9, `"impots" (sans accent) retrouve un poste dont le libellé accentué contient "impôts" (ex. D29) : ${suggestions9.map(textOf9).join(' | ')}`);
+
+  // sélectionner cette suggestion re-racine l'application dessus et vide la recherche
+  d29Item9.props.onClick();
+  tree9 = render9(sandbox9.__rendered, 'root9');
+  assert(findAll9(tree9, isSuggestions9).length === 0, 'la recherche est vidée après sélection d\'une suggestion');
+  searchInput9 = findAll9(tree9, isSearchInput9)[0];
+  assert(searchInput9.props.value === '', 'le champ de recherche est bien revenu à vide après sélection');
+  const rootSto9 = textOf9(findAll9(tree9, isCardSto9)[0]);
+  assert(rootSto9 === 'D29', `la carte racine est bien devenue D29 après sélection dans la recherche (trouvé "${rootSto9}")`);
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);
