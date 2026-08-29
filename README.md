@@ -45,6 +45,12 @@ vérifier la connexion et recharger la page.
   secteurs confondus) au fil de la frappe, insensible aux accents/à la
   casse (code, libellé, secteur ou position) ; cliquer une suggestion
   re-part directement sur cette carte, comme le bouton « repartir d'ici ».
+- Chaque carte affiche en petit sa source (« Source : DD_CNA_TEE » ou
+  « DD_CNA_SUT ») : la plupart des postes viennent du TEE, sauf les
+  quelques-uns qui n'existent que dans le SUT (`TSPP`, `TSBP`) et toute
+  valeur ventilée par activité (toujours du SUT). D'autres sources
+  s'ajouteront ici au fil des besoins (voir `graph.js::sourceFor`,
+  `payload.posteSource`).
 - Un sélecteur « Unités » en haut de page propose trois modes :
   - « En niveau » (par défaut) : comportement historique.
   - « En delta (variation annuelle) » : chaque carte, équation et le

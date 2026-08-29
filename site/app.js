@@ -191,6 +191,8 @@
         }, '↺'),
       ]),
       sentence,
+      h('div', { className: 'card-source', key: 'source', title: 'Source des données de cette carte' },
+        'Source : ' + G.sourceFor(sector, entry, sto, activity)),
     ];
     if (effectiveSign !== undefined) {
       children.push(

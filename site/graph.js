@@ -58,6 +58,18 @@
     function entryLabel(entry) { return D.labelsEntry[entry] || entry; }
     function activityLabel(activity) { return (D.labelsActivity || {})[activity] || activity; }
 
+    // source des données affichées sur une carte (ex. "DD_CNA_TEE",
+    // "DD_CNA_SUT") : "DD_CNA_TEE" par défaut (source primaire, non stockée
+    // dans le payload), sauf les quelques postes que le TEE ne couvre pas
+    // (ex. TSPP, TSBP — voir prepare_data.py::add_missing_sut_values) ou une
+    // valeur ventilée par activité, qui vient toujours du SUT (voir
+    // "Ventilation en activité"). D'autres sources s'ajouteront de la même
+    // façon (payload.posteSource, "sector|entry|sto" -> libellé).
+    function sourceFor(sector, entry, sto, activity) {
+      if (activity) return 'DD_CNA_SUT';
+      return (D.posteSource || {})[sector + '|' + entry + '|' + sto] || 'DD_CNA_TEE';
+    }
+
     function availableYears(sector, entry, sto) {
       const v = ((D.values[sector] || {})[entry] || {})[sto];
       if (!v) return [];
@@ -159,7 +171,7 @@
 
     return {
       data: D,
-      keyOf, getValue, stoLabel, sectorLabel, entryLabel, activityLabel, availableYears, series,
+      keyOf, getValue, stoLabel, sectorLabel, entryLabel, activityLabel, sourceFor, availableYears, series,
       getFormulasFor, expandFormula, checkIdentity, isFormulaVerified,
     };
   }

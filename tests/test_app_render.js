@@ -320,6 +320,10 @@ console.log('\n--- Test de la ventilation par activité (SUT) ---');
   selects[0].props.onChange({ target: { value: d1Option.props.value } });
   tree4 = render4(sandbox4.__rendered, 'root4');
 
+  const rootSource4 = findAll4(tree4, n => n.props && n.props.className === 'card-source')[0];
+  assert(!!rootSource4 && textOf4(rootSource4.props.children).indexOf('DD_CNA_TEE') !== -1,
+    `la carte D1/S1 (poste TEE ordinaire) affiche "Source : DD_CNA_TEE" (trouvé "${textOf4(rootSource4)}")`);
+
   let btns = findAll4(tree4, isButton4);
   const activiteBtns = btns.filter(b => textOf4(b.props.children).indexOf('Ventilation en activité') !== -1);
   assert(activiteBtns.length === 1,
@@ -368,6 +372,12 @@ console.log('\n--- Test de la ventilation par activité (SUT) ---');
 
     const codeA = badges.find(b => textOf4(b.props.children) === 'A');
     assert(!!codeA, 'la section A (agriculture) est présente parmi les cartes dépliées');
+
+    const cardNodesA = findAll4(tree4, n => n.props && n.props.className === 'card')
+      .find(c => findAll4(c, n => n.props && n.props.className === 'card-activity-badge').some(b => textOf4(b.props.children) === 'A'));
+    const sourceA = cardNodesA && findAll4(cardNodesA, n => n.props && n.props.className === 'card-source')[0];
+    assert(!!sourceA && textOf4(sourceA.props.children).indexOf('DD_CNA_SUT') !== -1,
+      `la carte d'une valeur ventilée par activité affiche "Source : DD_CNA_SUT" (trouvé "${textOf4(sourceA)}")`);
 
     const expected = G4.getValue('S1', 'D', 'D1', '2022', 'A');
     assert(expected !== null, 'G.getValue avec activity renvoie une valeur pour D1/S1/2022/A');

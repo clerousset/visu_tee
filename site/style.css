@@ -329,6 +329,12 @@ main {
   line-height: 1.55;
   color: var(--text);
 }
+.card-source {
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
 .card-value {
   font-weight: 700;
   font-variant-numeric: tabular-nums;

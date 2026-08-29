@@ -301,6 +301,9 @@ def add_missing_sut_values(values):
     # complète que les (entry, sto) totalement absents de `values` : ne
     # touche jamais un poste déjà chargé depuis le TEE (source primaire),
     # pour ne pas changer le comportement des cartes existantes.
+    # Retourne les (sector, entry, sto) effectivement complétés depuis le
+    # SUT, pour affichage de la source sur la carte (voir main()).
+    added = set()
     have = {(entry, sto) for sec_d in values.values() for entry, sto_d in sec_d.items() for sto in sto_d}
     # ne pas non plus étendre l'axe des années au-delà de ce que couvre déjà
     # le TEE : YEARS (site/app.js) prend le max sur toutes les séries
@@ -318,7 +321,7 @@ def add_missing_sut_values(values):
         needed.update((entry, sto) for entry, sto, _ in members)
     missing = needed - have
     if not missing:
-        return
+        return added
     for r in load_sut():
         if r["PRODUCT"] != "_T" or r["ACTIVITY"] != "_T":
             continue
@@ -328,6 +331,8 @@ def add_missing_sut_values(values):
         if max_year is not None and int(r["TIME_PERIOD"]) > max_year:
             continue
         values.setdefault(r["REF_SECTOR"], {}).setdefault(r["ACCOUNTING_ENTRY"], {}).setdefault(r["STO"], {})[r["TIME_PERIOD"]] = round(r["OBS_VALUE"], 1)
+        added.add((r["REF_SECTOR"], r["ACCOUNTING_ENTRY"], r["STO"]))
+    return added
 
 
 def load_lien_sut_formulas(values):
@@ -416,6 +421,17 @@ def main():
     # doivent être couvertes par values même si aucune formule TEE ne les
     # référence par ailleurs, pour que le test d'accord TEE/SUT soit possible
     needed_keys |= activite_target_keys()
+    # et pour les postes des identités SUT générales (LIEN_SUT_FORMULAS) :
+    # priorité au TEE (source primaire) quand il les couvre déjà — certains
+    # (ex. P7, P6) n'étaient chargés par aucune formule TEE existante et
+    # auraient sinon été à tort complétés depuis le SUT par
+    # add_missing_sut_values, qui ne doit combler que ce qui manque
+    # réellement au TEE (TSPP, TSBP).
+    lien_sut_keys = set()
+    for label, target, members in LIEN_SUT_FORMULAS:
+        lien_sut_keys.add(target)
+        lien_sut_keys.update((entry, sto) for entry, sto, _ in members)
+    needed_keys |= {(sector, entry, sto) for sector in SECTEURS for entry, sto in lien_sut_keys}
 
     values = load_values(src_data, needed_keys)
 
@@ -435,12 +451,19 @@ def main():
     # identités générales du SUT (voir sut_formulas.py) : quelques postes
     # (TSPP, TSBP) n'existent pas dans le TEE, on les complète depuis le SUT
     # avant de revalider/câbler ces identités.
-    add_missing_sut_values(values)
+    sut_added = add_missing_sut_values(values)
     add_missing_sto_labels(labels["STO"])
     lien_formulas, lien_index = load_lien_sut_formulas(values)
     formulas.update(lien_formulas)
     for idxkey, ids in lien_index.items():
         index.setdefault(idxkey, []).extend(ids)
+
+    # source des données affichée en petit sur chaque carte (site/app.js,
+    # graph.js::sourceFor) : "DD_CNA_TEE" par défaut (non stockée), sauf
+    # exception explicite ici — pour l'instant seulement les quelques
+    # postes complétés depuis le SUT (sut_added). D'autres sources futures
+    # s'ajouteront de la même façon.
+    poste_source = {f"{sec}|{entry}|{sto}": "DD_CNA_SUT" for sec, entry, sto in sut_added}
 
     payload = {
         "unit": "Millions d'euros courants",
@@ -454,6 +477,7 @@ def main():
         "index": index,
         "values": values,
         "activityValues": activity_values,
+        "posteSource": poste_source,
     }
 
     os.makedirs("site/data", exist_ok=True)
