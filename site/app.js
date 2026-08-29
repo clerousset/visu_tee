@@ -37,6 +37,12 @@
 
   function lowerFirst(str) { return str ? str.charAt(0).toLowerCase() + str.slice(1) : str; }
 
+  // affiché sur le pill et l'équation d'une identité non vérifiée pour
+  // l'année courante (champ `years`, voir graph.js::isFormulaVerified) :
+  // on la propose quand même plutôt que la masquer, pour ne pas donner
+  // l'impression qu'elle n'existe pas.
+  const UNVERIFIED_MESSAGE = 'Formule non vérifiée dans les données pour cette année.';
+
   // palette catégorielle pour distinguer chaque contribution de l'histogramme
   // empilé (une couleur par membre, indépendante du signe)
   const STACK_PALETTE = [
@@ -245,6 +251,7 @@
     });
     return h('div', { className: 'formula-group' }, [
       h('div', { className: 'formula-eq', key: 'eq' }, eqNodes),
+      !exp.verified ? h('div', { className: 'formula-warning', key: 'warn' }, '⚠ ' + UNVERIFIED_MESSAGE) : null,
       h('div', { className: 'formula-children', key: 'ch' },
         exp.others.map(m =>
           h(CardNode, {
@@ -288,12 +295,13 @@
         // même de cliquer sur le bouton pour déplier l'identité
         const exp = G.expandFormula(f.id, sector, entry, sto, year, activity, unit, pctRoot);
         const preview = exp ? formulaPreviewText(exp, sector, sto, entry, unit) : undefined;
+        const title = f.verified ? preview : [preview, '⚠ ' + UNVERIFIED_MESSAGE].filter(Boolean).join('\n');
         return h('button', {
           key: f.id,
-          className: 'pill' + (active[f.id] ? ' active' : ''),
-          title: preview,
+          className: 'pill' + (active[f.id] ? ' active' : '') + (f.verified ? '' : ' pill-unverified'),
+          title,
           onClick: () => onToggle(path, { sector, entry, sto, activity, depth: depth || 0 }, f.id),
-        }, (active[f.id] ? '▾ ' : '▸ ') + f.label + ' (' + (f.size - 1) + ')');
+        }, (active[f.id] ? '▾ ' : '▸ ') + f.label + ' (' + (f.size - 1) + ')' + (f.verified ? '' : ' ⚠'));
       })
     );
 

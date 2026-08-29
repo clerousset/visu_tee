@@ -95,9 +95,9 @@ certains postes détaillés peuvent être indisponibles.
   salariés, FBCF, ...) de l'économie totale, un bouton supplémentaire
   « Ventilation en activité » déplie le poste par section d'activité NACE
   Rev.2 (agriculture, industrie, construction, ...), à partir du Tableau des
-  ressources et emplois (SUT). Ce bouton n'apparaît que pour les années où
-  le total du SUT concorde avec la valeur du TEE (les deux sources ne sont
-  pas toujours au même millésime) — en pratique 1978–2022.
+  ressources et emplois (SUT). Ce bouton n'est numériquement vérifié que pour
+  les années où le total du SUT concorde avec la valeur du TEE (les deux
+  sources ne sont pas toujours au même millésime) — en pratique 1978–2022.
 - Le SUT fournit aussi quelques identités générales au niveau agrégé (total
   des emplois en prix d'acquisition, formation de capital, valeur ajoutée —
   voir `scripts/sut_formulas.py::LIEN_SUT_FORMULAS`) : elles apparaissent
@@ -105,6 +105,12 @@ certains postes détaillés peuvent être indisponibles.
   n'existent que dans le SUT (`TSPP`, total des emplois en prix
   d'acquisition ; `TSBP`, en prix de base — ce dernier n'a en pratique
   jamais de décomposition qui concorde avec les données).
+- Une identité qui n'est vérifiée que pour certaines années (les deux
+  ci-dessus) reste proposée en dehors de ces années plutôt que masquée,
+  mais avec un avertissement « ⚠ » sur le bouton et au-dessus de l'équation
+  dépliée (« Formule non vérifiée dans les données pour cette année ») :
+  mieux vaut la montrer avec ce garde-fou que la faire disparaître sans
+  explication.
 
 ## Régénérer les données
 

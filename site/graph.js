@@ -79,20 +79,28 @@
       return years.map(y => ({ year: y, value: v[String(y)] }));
     }
 
+    // une identité avec un champ `years` (ex. "Ventilation en activité",
+    // valide seulement où le SUT concorde avec le TEE — voir
+    // prepare_data.py::load_activite_formulas) n'est "vérifiée" que pour les
+    // années qu'il liste ; les identités TEE classiques n'ont pas ce champ
+    // et sont toujours vérifiées.
+    function isFormulaVerified(id, year) {
+      const years = (D.formulas[id] || {}).years;
+      return !years || years.indexOf(String(year)) !== -1;
+    }
+
     // formules auxquelles participe le poste (sector,entry,sto[,activity]),
-    // avec un court résumé (libellé + nombre de membres). `year` filtre les
-    // identités qui ne valent que pour certaines années (ex. "Ventilation
-    // en activité", valide seulement où le SUT concorde avec le TEE — voir
-    // prepare_data.py::load_activite_formulas) ; les identités TEE
-    // classiques n'ont pas de champ `years` et restent toujours proposées.
+    // avec un court résumé (libellé + nombre de membres) et si elle est
+    // vérifiée pour cette année (voir isFormulaVerified) : une identité non
+    // vérifiée reste proposée (pill affiché avec un avertissement), plutôt
+    // que masquée, pour ne pas donner l'impression qu'elle n'existe pas.
     function getFormulasFor(sector, entry, sto, year, activity) {
       const ids = D.index[keyOf(sector, entry, sto, activity)] || [];
       const formulas = ids
-        .filter(id => {
-          const years = D.formulas[id].years;
-          return !years || years.indexOf(String(year)) !== -1;
-        })
-        .map(id => ({ id, label: D.formulas[id].label, size: D.formulas[id].members.length }));
+        .map(id => ({
+          id, label: D.formulas[id].label, size: D.formulas[id].members.length,
+          verified: isFormulaVerified(id, year),
+        }));
       // les ventilations (même poste, décomposé par secteur/catégorie/
       // activité) sont proposées avant les liens vers un autre solde (tri
       // stable : l'ordre relatif au sein de chaque catégorie est conservé)
@@ -133,7 +141,7 @@
       // (tri stable : l'ordre relatif du reste, tel que dans formules_TEE.csv,
       // est conservé)
       others.sort((a, b) => (a.entry === 'B' ? 0 : 1) - (b.entry === 'B' ? 0 : 1));
-      return { id, label: f.label, originSigne, others };
+      return { id, label: f.label, originSigne, others, verified: isFormulaVerified(id, year) };
     }
 
     // vérifie (à titre informatif) que Σ signe*valeur ≈ 0 pour une formule à
@@ -152,7 +160,7 @@
     return {
       data: D,
       keyOf, getValue, stoLabel, sectorLabel, entryLabel, activityLabel, availableYears, series,
-      getFormulasFor, expandFormula, checkIdentity,
+      getFormulasFor, expandFormula, checkIdentity, isFormulaVerified,
     };
   }
 

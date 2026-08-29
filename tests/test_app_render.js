@@ -326,15 +326,33 @@ console.log('\n--- Test de la ventilation par activité (SUT) ---');
     `la carte D1/S1/2022 propose exactement un bouton "Ventilation en activité" (trouvé ${activiteBtns.length}) : ` +
     `formules_SUT.csv contient un bloc par année validée, elles doivent être fusionnées en une seule identité ` +
     `(sinon une pill en double par année, voir load_activite_formulas)`);
-  // l'identité ne doit être proposée QUE pour les années où TEE/SUT
-  // concordent (1978-2022, pas 2024) : sinon getFormulasFor ne filtre pas
-  // sur `years` et l'équation serait incohérente avec la carte affichée
+  // l'identité ne concorde entre TEE et SUT que pour 1978-2022 (pas 2024) :
+  // le bouton reste proposé quand même (pas masqué), mais marqué "non
+  // vérifiée" (voir isFormulaVerified) pour ne pas laisser croire qu'elle
+  // n'existe pas.
   selects = findAll4(tree4, isSelect4);
   selects[1].props.onChange({ target: { value: '2024' } });
   let tree4y2024 = render4(sandbox4.__rendered, 'root4');
   const btns2024 = findAll4(tree4y2024, isButton4);
-  assert(!btns2024.some(b => textOf4(b.props.children).indexOf('Ventilation en activité') !== -1),
-    'le bouton "Ventilation en activité" n’apparaît pas pour 2024 (hors du champ commun TEE/SUT)');
+  const activiteBtn2024 = btns2024.find(b => textOf4(b.props.children).indexOf('Ventilation en activité') !== -1);
+  assert(!!activiteBtn2024,
+    'le bouton "Ventilation en activité" reste proposé pour 2024 (hors du champ commun TEE/SUT)');
+  assert(activiteBtn2024 && activiteBtn2024.props.className.indexOf('pill-unverified') !== -1,
+    'mais il est marqué "non vérifiée" pour 2024 (classe pill-unverified)');
+  assert(activiteBtn2024 && textOf4(activiteBtn2024.props.children).indexOf('⚠') !== -1,
+    'et affiche un symbole d\'avertissement dans son libellé');
+  // déplier quand même l'identité non vérifiée doit afficher le même
+  // avertissement au-dessus de l'équation
+  if (activiteBtn2024) {
+    activiteBtn2024.props.onClick();
+    tree4y2024 = render4(sandbox4.__rendered, 'root4');
+    const warning2024 = findAll4(tree4y2024, n => n.props && n.props.className === 'formula-warning')[0];
+    assert(!!warning2024, 'déplier l\'identité non vérifiée affiche un avertissement au-dessus de l\'équation');
+    assert(!!warning2024 && textOf4(warning2024.props.children).indexOf('non vérifiée') !== -1,
+      'l\'avertissement mentionne bien "non vérifiée"');
+    activiteBtn2024.props.onClick(); // referme avant de continuer le test
+    tree4y2024 = render4(sandbox4.__rendered, 'root4');
+  }
   selects[1].props.onChange({ target: { value: '2022' } }); // revient à l'année testée
   tree4 = render4(sandbox4.__rendered, 'root4');
   btns = findAll4(tree4, isButton4);

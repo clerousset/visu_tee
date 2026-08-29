@@ -9,6 +9,7 @@
   --accent-2: #7ee0c3;
   --pos: #4fd18b;
   --neg: #ff6b6b;
+  --warn: #e6b800;
   --entry-c: #7ee0c3;
   --entry-d: #ffb454;
   --entry-b: #5b8def;
@@ -451,6 +452,23 @@ main {
   color: var(--accent);
   border-color: var(--accent);
   font-weight: 600;
+}
+.pill-unverified {
+  border-style: dashed;
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.pill-unverified:hover { color: var(--warn); border-color: var(--warn); }
+.pill-unverified.active {
+  background: rgba(230,184,0,0.15);
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.formula-warning {
+  color: var(--warn);
+  font-size: 12px;
+  margin: -6px 0 10px;
 }
 
 .groups-stack {
