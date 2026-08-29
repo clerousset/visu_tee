@@ -21,6 +21,8 @@ import json
 import os
 import sys
 
+from sut_formulas import LIEN_SUT_FORMULAS
+
 DATA_DIR = "data"
 OUT_PATH = "site/data/tee_graph.js"
 
@@ -52,6 +54,18 @@ def load_metadata_activite():
             if row["COD_VAR"] == "ACTIVITY":
                 labels[row["COD_MOD"]] = row["LIB_MOD"]
     return labels
+
+
+def add_missing_sto_labels(sto_labels):
+    # DD_CNA_TEE_metadata.csv ne connaît pas les postes propres au SUT
+    # (ex. TSPP, TSBP — voir LIEN_SUT_FORMULAS) : complète les libellés
+    # manquants depuis DD_CNA_SUT_metadata.csv, sans écraser un libellé TEE
+    # déjà présent.
+    with open(f"{DATA_DIR}/DD_CNA_SUT_metadata.csv", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["COD_VAR"] == "STO" and row["COD_MOD"] not in sto_labels:
+                sto_labels[row["COD_MOD"]] = row["LIB_MOD"]
 
 
 def load_formulas():
@@ -279,6 +293,88 @@ def load_activite_formulas(tee_values):
     return formulas, activity_values
 
 
+def add_missing_sut_values(values):
+    # certains postes de LIEN_SUT_FORMULAS (ex. TSPP, TSBP) n'existent pas
+    # dans le TEE (DD_CNA_TEE_data.csv), seulement dans le SUT — on les
+    # ajoute à `values` au niveau agrégé (PRODUCT == "_T", ACTIVITY == "_T")
+    # pour qu'ils puissent avoir une carte comme un poste TEE ordinaire. Ne
+    # complète que les (entry, sto) totalement absents de `values` : ne
+    # touche jamais un poste déjà chargé depuis le TEE (source primaire),
+    # pour ne pas changer le comportement des cartes existantes.
+    have = {(entry, sto) for sec_d in values.values() for entry, sto_d in sec_d.items() for sto in sto_d}
+    # ne pas non plus étendre l'axe des années au-delà de ce que couvre déjà
+    # le TEE : YEARS (site/app.js) prend le max sur toutes les séries
+    # chargées pour choisir l'année par défaut, et TSBP par exemple a une
+    # année 2025 en SUT sans aucune contrepartie TEE — l'ajouter décalerait
+    # l'année par défaut du site vers une année où la graine (D1/S1) n'a pas
+    # de valeur, même si l'identité qui l'utilise ne concorde jamais.
+    max_year = max(
+        (int(y) for sec_d in values.values() for sto_d in sec_d.values() for years in sto_d.values() for y in years),
+        default=None,
+    )
+    needed = set()
+    for label, target, members in LIEN_SUT_FORMULAS:
+        needed.add(target)
+        needed.update((entry, sto) for entry, sto, _ in members)
+    missing = needed - have
+    if not missing:
+        return
+    for r in load_sut():
+        if r["PRODUCT"] != "_T" or r["ACTIVITY"] != "_T":
+            continue
+        key = (r["ACCOUNTING_ENTRY"], r["STO"])
+        if key not in missing:
+            continue
+        if max_year is not None and int(r["TIME_PERIOD"]) > max_year:
+            continue
+        values.setdefault(r["REF_SECTOR"], {}).setdefault(r["ACCOUNTING_ENTRY"], {}).setdefault(r["STO"], {})[r["TIME_PERIOD"]] = round(r["OBS_VALUE"], 1)
+
+
+def load_lien_sut_formulas(values):
+    # identités générales du SUT au niveau agrégé (voir sut_formulas.py) :
+    # la structure (quels postes la composent) est invariante par secteur et
+    # par année par construction des comptes nationaux, mais sa
+    # disponibilité effective varie — revalidée ici directement sur `values`
+    # (déjà complété par add_missing_sut_values), plutôt que réutiliser le
+    # calcul déjà fait pour data/formules_SUT.csv, pour garantir l'accord
+    # avec ce qui est réellement affiché (cf. load_activite_formulas : "les
+    # deux sources ne sont pas toujours au même millésime").
+    formulas = {}
+    index_extra = {}  # "sector|entry|sto" -> [fid,...]
+    for label, target, members in LIEN_SUT_FORMULAS:
+        t_entry, t_sto = target
+        for sector in SECTEURS:
+            target_series = (((values.get(sector) or {}).get(t_entry) or {}).get(t_sto) or {})
+            valid_years = []
+            for year, target_val in target_series.items():
+                total = 0.0
+                ok = True
+                for (entry, sto, signe_affiche) in members:
+                    v = (((values.get(sector) or {}).get(entry) or {}).get(sto) or {}).get(year)
+                    if v is None:
+                        ok = False
+                        break
+                    total += signe_affiche * v
+                if ok and abs(target_val - total) < 1:
+                    valid_years.append(year)
+            if not valid_years:
+                continue
+            fid = f"{label}|{sector}"
+            member_dicts = [{"sector": sector, "entry": t_entry, "sto": t_sto, "signe": 1}]
+            for (entry, sto, signe_affiche) in members:
+                member_dicts.append({"sector": sector, "entry": entry, "sto": sto, "signe": -signe_affiche})
+            formulas[fid] = {
+                "label": label,
+                "target": member_dicts[0],
+                "members": member_dicts,
+                "years": sorted(valid_years),
+            }
+            for m in member_dicts:
+                idxkey = f"{m['sector']}|{m['entry']}|{m['sto']}"
+                index_extra.setdefault(idxkey, []).append(fid)
+    return formulas, index_extra
+
+
 def main():
     src_data = sys.argv[1] if len(sys.argv) > 1 else f"{DATA_DIR}/DD_CNA_TEE_data.csv"
     labels = load_metadata()
@@ -336,6 +432,16 @@ def main():
             idxkey = f"{m['sector']}|{m['entry']}|{m['sto']}"
             index.setdefault(idxkey, []).append(fid)
 
+    # identités générales du SUT (voir sut_formulas.py) : quelques postes
+    # (TSPP, TSBP) n'existent pas dans le TEE, on les complète depuis le SUT
+    # avant de revalider/câbler ces identités.
+    add_missing_sut_values(values)
+    add_missing_sto_labels(labels["STO"])
+    lien_formulas, lien_index = load_lien_sut_formulas(values)
+    formulas.update(lien_formulas)
+    for idxkey, ids in lien_index.items():
+        index.setdefault(idxkey, []).extend(ids)
+
     payload = {
         "unit": "Millions d'euros courants",
         "seed": SEED,
@@ -360,8 +466,10 @@ def main():
     n_keys = len(needed_keys)
     n_formulas = len(formulas)
     n_activite = len(activite_formulas)
+    n_lien_sut = len(lien_formulas)
     print(f"OK — {OUT_PATH} généré : {n_formulas} identités comptables "
-          f"(dont {n_activite} ventilations par activité), {n_keys} postes (secteur x poste x position) suivis.")
+          f"(dont {n_activite} ventilations par activité, {n_lien_sut} identités SUT générales), "
+          f"{n_keys} postes (secteur x poste x position) suivis.")
 
 
 if __name__ == "__main__":

@@ -94,6 +94,13 @@ certains postes détaillés peuvent être indisponibles.
   ressources et emplois (SUT). Ce bouton n'apparaît que pour les années où
   le total du SUT concorde avec la valeur du TEE (les deux sources ne sont
   pas toujours au même millésime) — en pratique 1978–2022.
+- Le SUT fournit aussi quelques identités générales au niveau agrégé (total
+  des emplois en prix d'acquisition, formation de capital, valeur ajoutée —
+  voir `scripts/sut_formulas.py::LIEN_SUT_FORMULAS`) : elles apparaissent
+  comme des boutons de définition ordinaires, y compris pour deux postes qui
+  n'existent que dans le SUT (`TSPP`, total des emplois en prix
+  d'acquisition ; `TSBP`, en prix de base — ce dernier n'a en pratique
+  jamais de décomposition qui concorde avec les données).
 
 ## Régénérer les données
 
@@ -125,8 +132,9 @@ modifié différemment de ce que ce portage reproduit, il vaut mieux régénére
 Si `data/DD_CNA_SUT_data.csv` est mis à jour, régénérer aussi
 `data/formules_SUT.csv` (ventilation par activité, et identités générales du
 SUT au niveau agrégé — total/emplois en prix d'acquisition, formation de
-capital, valeur ajoutée — voir `LIEN_SUT_FORMULAS` dans
-`regenerate_formules_sut.py`) avant `prepare_data.py` :
+capital, valeur ajoutée — voir `scripts/sut_formulas.py::LIEN_SUT_FORMULAS`,
+partagé avec `prepare_data.py` qui câble ces mêmes identités dans le site)
+avant `prepare_data.py` :
 
 ```
 python3 scripts/regenerate_formules_sut.py   # écrit data/formules_SUT.csv

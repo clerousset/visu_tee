@@ -5,7 +5,9 @@ que scripts/regenerate_formules.py pour le TEE (somme des composantes ≈
 valeur du total, tolérance < 1). Deux familles d'identités :
 - ventilation par activité (branche) : build_ss_activite ;
 - identités générales au niveau agrégé (économie totale S1..S15, produit
-  _T) transcrites de R/etude.r : build_lien_sut / LIEN_SUT_FORMULAS.
+  _T) transcrites de R/etude.r : build_lien_sut, sur la liste
+  LIEN_SUT_FORMULAS de sut_formulas.py (partagée avec prepare_data.py, qui
+  câble ces mêmes identités dans le site).
 
 À relancer si data/DD_CNA_SUT_data.csv change.
 """
@@ -13,6 +15,7 @@ import csv
 import itertools
 
 from prepare_data import load_sut
+from sut_formulas import LIEN_SUT_FORMULAS
 
 # sections NACE Rev.2 (A à U) : le niveau le plus agrégé de la nomenclature
 # d'activité, hors code "_T" (total) lui-même
@@ -119,27 +122,6 @@ def build_lien_sut(rows, label, target, members):
                 "signe": -signe_affiche, "formule": label, "id_formule": fid,
             })
     return out
-
-
-# identités comptables générales du SUT (économie totale S1..S15, produit
-# agrégé _T), transcrites de R/etude.r : (label, cible (entry, sto),
-# [(entry, sto, signe affiché dans l'équation), ...])
-LIEN_SUT_FORMULAS = [
-    ("Lien total des ressources (prix de base)", ("C", "TSBP"),
-        [("C", "P1", 1), ("C", "P7", 1)]),
-    ("Lien total des emplois (prix d'acquisition/prix de base)", ("C", "TSPP"),
-        [("C", "P1", 1), ("C", "P7", 1), ("D", "D21", 1), ("D", "D31", 1)]),
-    ("Décomposition du total des emplois (prix d'acquisition)", ("C", "TSPP"),
-        [("D", "P2", 1), ("D", "P3", 1), ("D", "P5", 1), ("D", "P6", 1)]),
-    ("Décomposition de la formation de capital (P5)", ("D", "P5"),
-        [("D", "P51G", 1), ("D", "P53", 1), ("D", "P52", 1)]),
-    ("Lien valeur ajoutée/production-consommations intermédiaires", ("B", "B1G"),
-        [("C", "P1", 1), ("D", "P2", -1)]),
-    ("Lien valeur ajoutée/rémunérations et excédent brut d'exploitation", ("B", "B1G"),
-        [("B", "B2A3G", 1), ("D", "D1", 1), ("D", "D29", 1), ("D", "D39", 1)]),
-    ("Lien impôts nets des subventions sur les produits", ("C", "D21X31"),
-        [("C", "D21", 1), ("C", "D31", 1)]),
-]
 
 
 def main():
