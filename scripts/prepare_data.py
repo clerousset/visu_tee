@@ -175,12 +175,16 @@ def load_sut(src_csv=None):
 def activite_target_keys():
     # (sector,entry,sto) des cibles de "Ventilation en activité" (le membre
     # ACTIVITY == "_T" de chaque bloc), pour s'assurer que load_values() les
-    # couvre même si aucune formule TEE ne les référence par ailleurs.
+    # couvre même si aucune formule TEE ne les référence par ailleurs. Filtre
+    # sur le libellé "formule" : formules_SUT.csv contient aussi d'autres
+    # identités (voir scripts/regenerate_formules_sut.py, LIEN_SUT_FORMULAS)
+    # qui ciblent parfois le même (secteur, position, poste) qu'une
+    # "Ventilation en activité" (ex. B1G, D1) sans en être une — à ignorer ici.
     keys = set()
     with open(f"{DATA_DIR}/formules_SUT.csv", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f, delimiter=",", quotechar='"')
         for row in reader:
-            if row["ACTIVITY"] == "_T":
+            if row["formule"] == "Ventilation en activité" and row["ACTIVITY"] == "_T":
                 keys.add((row["REF_SECTOR"], row["ACCOUNTING_ENTRY"], row["STO"]))
     return keys
 
@@ -216,6 +220,11 @@ def load_activite_formulas(tee_values):
     with open(f"{DATA_DIR}/formules_SUT.csv", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f, delimiter=",", quotechar='"')
         for row in reader:
+            # formules_SUT.csv contient aussi d'autres identités que la
+            # ventilation par activité (voir regenerate_formules_sut.py,
+            # LIEN_SUT_FORMULAS) : hors sujet ici, à ignorer.
+            if row["formule"] != "Ventilation en activité":
+                continue
             key = f"{row['formule']}|{row['id_formule']}"
             groups.setdefault(key, []).append(row)
 

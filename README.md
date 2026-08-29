@@ -123,8 +123,10 @@ modifié différemment de ce que ce portage reproduit, il vaut mieux régénére
 `formules_TEE.csv` directement avec R et ignorer `regenerate_formules.py`.
 
 Si `data/DD_CNA_SUT_data.csv` est mis à jour, régénérer aussi
-`data/formules_SUT.csv` (identité de ventilation par activité) avant
-`prepare_data.py` :
+`data/formules_SUT.csv` (ventilation par activité, et identités générales du
+SUT au niveau agrégé — total/emplois en prix d'acquisition, formation de
+capital, valeur ajoutée — voir `LIEN_SUT_FORMULAS` dans
+`regenerate_formules_sut.py`) avant `prepare_data.py` :
 
 ```
 python3 scripts/regenerate_formules_sut.py   # écrit data/formules_SUT.csv
