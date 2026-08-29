@@ -128,7 +128,7 @@ LIEN_SUT_FORMULAS = [
     ("Lien total des ressources (prix de base)", ("C", "TSBP"),
         [("C", "P1", 1), ("C", "P7", 1)]),
     ("Lien total des emplois (prix d'acquisition/prix de base)", ("C", "TSPP"),
-        [("C", "TSBP", 1), ("D", "D21", 1), ("D", "D31", 1)]),
+        [("C", "P1", 1), ("C", "P7", 1), ("D", "D21", 1), ("D", "D31", 1)]),
     ("Décomposition du total des emplois (prix d'acquisition)", ("C", "TSPP"),
         [("D", "P2", 1), ("D", "P3", 1), ("D", "P5", 1), ("D", "P6", 1)]),
     ("Décomposition de la formation de capital (P5)", ("D", "P5"),
