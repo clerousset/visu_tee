@@ -147,6 +147,100 @@ try {
 assert(!deepRenderError, 'dépliage récursif simulé (profondeur <= ' + MAX_DEPTH + ') sans exception' + (deepRenderError ? ' : ' + deepRenderError.stack : ''));
 console.log('Nœuds visités en dépliage simulé :', deepNodeCount);
 
+// --- Test qu'une ventilation (sous-secteur, sous-catégorie, activité) ne se
+// propose plus que "vers le bas", même après avoir changé de dimension en
+// cours de route : S1 -> S11 (ventilation par secteur) puis, DANS S11,
+// D1 -> D11 (ventilation en sous-catégorie) ne doit pas faire réapparaître
+// "Ventilation en sous-secteur" (pour D11 cette fois) sur le petit-enfant
+// S11/D11 — ce serait une autre façon de remonter vers S1, simplement
+// atteinte par un chemin différent que celui qui a produit la carte
+// (bug : le filtre précédent, excludeFormulaId, ne portait que sur
+// l'identité exacte qui a produit la carte, pas sur toute ventilation du
+// même type plus bas dans l'arbre).
+console.log('\n--- Test de navigation dans les ventilations ("ne pas remonter") ---');
+{
+  function statefulUseStateNav(initial) {
+    const hooks = curHooksNav;
+    const i = curIdxNav++;
+    if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial;
+    return [hooks[i], (v) => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }];
+  }
+  let curHooksNav = null, curIdxNav = 0;
+  const sandboxNav = {
+    console,
+    document: makeFakeDom(),
+    React: { createElement: mockCreateElement, useState: statefulUseStateNav },
+    ReactDOM: { createRoot: () => ({ render: (el) => { sandboxNav.__rendered = el; } }) },
+  };
+  sandboxNav.window = sandboxNav;
+  vm.createContext(sandboxNav);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'data', 'tee_graph.js'), 'utf8'), sandboxNav);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'graph.js'), 'utf8'), sandboxNav);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'app.js'), 'utf8'), sandboxNav);
+
+  const hookStoresNav = {};
+  function renderNav(el, pathKey) {
+    if (el === null || el === undefined || typeof el === 'boolean' || typeof el === 'string' || typeof el === 'number') return el;
+    if (Array.isArray(el)) return el.map((e, i) => renderNav(e, pathKey + '.' + i));
+    if (typeof el !== 'object' || !('type' in el)) return el;
+    const t = el.type;
+    if (typeof t === 'function') {
+      const name = t.displayName || t.name || 'anon';
+      const key = pathKey + '/' + name + (el.props && el.props.key !== undefined ? ':' + el.props.key : '');
+      if (!hookStoresNav[key]) hookStoresNav[key] = [];
+      curHooksNav = hookStoresNav[key]; curIdxNav = 0;
+      return { __rendered: renderNav(t(el.props), key), __el: el };
+    }
+    return { type: t, props: Object.assign({}, el.props, el.props && el.props.children !== undefined ? { children: renderNav(el.props.children, pathKey + '.c') } : {}) };
+  }
+  function findAllNav(node, matchFn, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    if (node.__rendered !== undefined) { findAllNav(node.__rendered, matchFn, acc); return acc; }
+    if (Array.isArray(node)) { node.forEach(n => findAllNav(n, matchFn, acc)); return acc; }
+    if (matchFn(node)) acc.push(node);
+    if (node.props && node.props.children) findAllNav(node.props.children, matchFn, acc);
+    return acc;
+  }
+  function textOfNav(n) {
+    if (typeof n === 'string' || typeof n === 'number') return String(n);
+    if (Array.isArray(n)) return n.map(textOfNav).join('');
+    if (n && n.__rendered !== undefined) return textOfNav(n.__rendered);
+    if (n && n.props && n.props.children !== undefined) return textOfNav(n.props.children);
+    return '';
+  }
+  const isPillNav = n => n.type === 'button' && n.props.className && n.props.className.indexOf('pill') === 0;
+
+  let treeNav = renderNav(sandboxNav.__rendered, 'rootNav');
+  const rootPillsNav = findAllNav(treeNav, isPillNav);
+  const secteurPillNav = rootPillsNav.find(p => textOfNav(p.props.children).indexOf('Ventilation en sous-secteur') !== -1);
+  assert(!!secteurPillNav, 'la graine propose "Ventilation en sous-secteur"');
+
+  if (secteurPillNav) {
+    secteurPillNav.props.onClick();
+    treeNav = renderNav(sandboxNav.__rendered, 'rootNav');
+
+    // dans le 2e groupe de pills (1er sous-secteur enfant), ouvre sa propre
+    // ventilation en sous-catégorie
+    const expandRowsNav = findAllNav(treeNav, n => n.props && n.props.className === 'expand-row');
+    assert(expandRowsNav.length >= 2, `au moins 2 groupes de pills après le 1er dépliage (trouvé ${expandRowsNav.length})`);
+    const childPillsNav = expandRowsNav.length >= 2 ? findAllNav(expandRowsNav[1], isPillNav) : [];
+    const catPillNav = childPillsNav.find(p => textOfNav(p.props.children).indexOf('sous-catégorie') !== -1);
+    assert(!!catPillNav, "le sous-secteur enfant propose sa propre ventilation en sous-catégorie");
+
+    if (catPillNav) {
+      catPillNav.props.onClick();
+      treeNav = renderNav(sandboxNav.__rendered, 'rootNav');
+
+      const allPillsNav = findAllNav(treeNav, isPillNav).map(p => textOfNav(p.props.children));
+      const secteurPillsCount = allPillsNav.filter(t => t.indexOf('Ventilation en sous-secteur') !== -1).length;
+      assert(secteurPillsCount === 1,
+        `"Ventilation en sous-secteur" n'apparaît qu'une seule fois (sur la graine) après S1->sous-secteur->sous-catégorie ` +
+        `(trouvé ${secteurPillsCount} occurrence(s) : ${allPillsNav.filter(t => t.indexOf('sous-secteur') !== -1).join(' | ')})`);
+    }
+  }
+}
+
 // --- Test avec un vrai état simulé (clics successifs) : vérifie que le
 // panneau latéral affiche un histogramme par décomposition active, y compris
 // une sous-décomposition ouverte sur une carte enfant (dépliage plus

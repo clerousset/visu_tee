@@ -109,6 +109,21 @@
     function getFormulasFor(sector, entry, sto, year, activity) {
       const ids = D.index[keyOf(sector, entry, sto, activity)] || [];
       const formulas = ids
+        .filter(id => {
+          const f = D.formulas[id];
+          if (!f.label || f.label.indexOf('Ventilation') !== 0) return true;
+          // une ventilation (sous-secteur/sous-catégorie/activité) ne se
+          // propose que "vers le bas" : seule sa carte cible (celle qui SE
+          // décompose) peut la déplier. Sinon, n'importe lequel de ses
+          // autres membres la re-proposerait "vers le haut" (le parent et
+          // ses frères) — y compris plusieurs niveaux plus bas dans l'arbre,
+          // atteint par une AUTRE ventilation entre-temps (ex. S1 -> S11 par
+          // secteur, puis D1 -> D11 par sous-catégorie : sans ce filtre,
+          // S11/D11 proposerait encore "Ventilation en sous-secteur", qui
+          // ramènerait vers S1/D11 alors que la branche S11 est déjà choisie).
+          const t = f.target;
+          return !!t && sameMember(t, sector, entry, sto, activity);
+        })
         .map(id => ({
           id, label: D.formulas[id].label, size: D.formulas[id].members.length,
           verified: isFormulaVerified(id, year),

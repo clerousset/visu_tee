@@ -76,6 +76,13 @@ vérifier la connexion et recharger la page.
   badge +/- indiquant s'ils s'ajoutent ou se retranchent pour reconstituer
   la valeur de départ, et l'équation correspondante affichée en toutes
   lettres. Chaque nouvelle carte peut à son tour être dépliée.
+- Une ventilation (sous-secteur, sous-catégorie, activité) ne se propose que
+  « vers le bas » : seule la carte qui SE décompose peut la déplier, jamais
+  un poste apparu comme l'un de ses membres (qui la redéplierait « vers le
+  haut », vers le parent et ses frères) — y compris après avoir changé de
+  dimension de décomposition en cours de route (ex. secteur puis
+  sous-catégorie). Une identité de type « Lien ... » (définition d'un solde)
+  n'a pas cette restriction : elle reste proposée dans les deux sens.
 - Chaque carte porte un petit bouton « ⌖ » (« repartir d'ici ») : cliquer
   dessus en fait la nouvelle racine de l'exploration (y compris si elle est
   dans un autre secteur, atteint via une ventilation par secteur), et

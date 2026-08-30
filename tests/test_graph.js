@@ -79,6 +79,47 @@ if (ventil) {
   assert(diff < 5, `identité comptable B9 = Σ(secteurs) à 2024 (écart=${diff.toFixed(2)})`);
 }
 
+// 4bis) une ventilation ne se propose que depuis sa carte cible (celle qui
+// SE décompose) : un membre non-cible (ex. un sous-secteur) ne doit plus la
+// lister du tout — pas seulement filtrée côté UI via excludeFormulaId, qui
+// ne couvrait que le lien direct parent -> enfant.
+if (ventil) {
+  const child = G.expandFormula(ventil.id, 'S1', 'B', 'B9', '2024').others[0];
+  const childFormulas2 = G.getFormulasFor(child.sector, child.entry, child.sto, '2024');
+  assert(!childFormulas2.some(f => f.id === ventil.id),
+    `un membre non-cible (${child.sector}) de "Ventilation en sous-secteur" ne la reliste plus du tout`);
+}
+
+// 4ter) régression : une ventilation par secteur (ex. S1 -> S11) suivie
+// d'une ventilation en sous-catégorie DANS S11 (ex. D1 -> D11) ne doit pas
+// faire réapparaître "Ventilation en sous-secteur" (pour D11 cette fois) sur
+// le petit-enfant S11/D11 — ce serait une autre façon de remonter vers S1,
+// simplement atteinte par un chemin différent (bug corrigé : le filtre ne
+// portait avant que sur l'identité exacte qui a produit la carte, pas sur
+// toute ventilation du même type plus bas dans l'arbre).
+{
+  const seedFormulas2 = G.getFormulasFor(D.seed.sector, D.seed.entry, D.seed.sto, '2024');
+  const secteurF = seedFormulas2.find(f => f.label === 'Ventilation en sous-secteur');
+  assert(!!secteurF, 'la graine propose une ventilation par secteur');
+  if (secteurF) {
+    const s11 = G.expandFormula(secteurF.id, D.seed.sector, D.seed.entry, D.seed.sto, '2024').others
+      .find(m => m.sector !== D.seed.sector);
+    assert(!!s11, 'la ventilation par secteur de la graine a un membre dans un autre secteur');
+    if (s11) {
+      const s11Formulas = G.getFormulasFor(s11.sector, s11.entry, s11.sto, '2024');
+      const s11CatF = s11Formulas.find(f => f.label === 'Ventilation en sous-catégorie');
+      assert(!!s11CatF, `${s11.sto}/${s11.sector} propose sa propre ventilation en sous-catégorie`);
+      if (s11CatF) {
+        const grandchild = G.expandFormula(s11CatF.id, s11.sector, s11.entry, s11.sto, '2024').others[0];
+        const gcFormulas = G.getFormulasFor(grandchild.sector, grandchild.entry, grandchild.sto, '2024');
+        assert(!gcFormulas.some(f => f.label === 'Ventilation en sous-secteur'),
+          `le petit-enfant ${grandchild.sto}/${grandchild.sector} (atteint par sous-catégorie après un sous-secteur) ` +
+          `ne propose pas "Ventilation en sous-secteur" (remonterait vers ${D.seed.sector})`);
+      }
+    }
+  }
+}
+
 // 5) robustesse sur une année plus ancienne (moins de garantie, juste sanity check)
 const val1980 = G.getValue('S1', 'B', 'B9', '1980');
 if (val1980 !== null && defB9) {
