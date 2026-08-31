@@ -100,6 +100,30 @@ b1gq = b1gq_raw %>%
   mutate(formule = "Lien PIB/valeur ajoutée", id_formule = cur_group_id()) %>% ungroup() %>%
   select(-OBS_VALUE)
 
+# B2A3G = B2G + B3G (excédent brut d'exploitation et revenu mixte brut =
+# excédent brut d'exploitation + revenu mixte brut). B3G (revenu mixte,
+# propre aux entreprises individuelles) n'existe que pour S1 et S14
+# (ménages) : ailleurs B2A3G == B2G directement (pas de composante mixte),
+# donc cette identité n'est validée que là où B3G existe réellement comme
+# poste distinct (tolérance < 1, comme les blocs précédents).
+b2a3g_raw = df %>%
+  filter(STO %in% c("B2A3G", "B2G", "B3G"))
+
+b2a3g_ok = b2a3g_raw %>%
+  filter(STO %in% c("B2G", "B3G")) %>%
+  group_by(REF_SECTOR) %>%
+  summarise(n = n(), somme = sum(OBS_VALUE, na.rm = TRUE), .groups = "drop") %>%
+  filter(n == 2) %>%
+  inner_join(b2a3g_raw %>% filter(STO == "B2A3G") %>% select(REF_SECTOR, OBS_VALUE), by = "REF_SECTOR") %>%
+  filter(abs(somme - OBS_VALUE) < 1)
+
+b2a3g = b2a3g_raw %>%
+  semi_join(b2a3g_ok, by = "REF_SECTOR") %>%
+  mutate(signe = if_else(STO == "B2A3G", 1, -1)) %>%
+  group_by(REF_SECTOR) %>%
+  mutate(formule = "Lien excédent brut d'exploitation et revenu mixte brut/excédent brut d'exploitation", id_formule = cur_group_id()) %>% ungroup() %>%
+  select(-OBS_VALUE)
+
 #B5G = B2G + B3G - D4_D + D4_C + D1_C + D2_C + D3_C
 
 b5g = df %>%
@@ -140,7 +164,7 @@ b8g = df %>%
    mutate(formule = "Lien épargne/capacité ou besoin de financement", id_formule = cur_group_id()) %>% ungroup() %>%
    select(-OBS_VALUE)     
 
-rbind(b9g, b8g, b6g, b5g, b2g, b1gq, ss_ventil, ss_secteur) %>%
+rbind(b9g, b8g, b6g, b5g, b2a3g, b2g, b1gq, ss_ventil, ss_secteur) %>%
    select(REF_SECTOR, TIME_PERIOD, ACCOUNTING_ENTRY, STO, signe, formule, id_formule) %>%
    write.csv("data/formules_TEE.csv", row.names = FALSE)
 

@@ -245,6 +245,41 @@ def build_b1gq(df):
     return out
 
 
+def build_b2a3g(df):
+    # B2A3G = B2G + B3G (excédent brut d'exploitation et revenu mixte brut
+    # = excédent brut d'exploitation + revenu mixte brut). B3G (revenu
+    # mixte, propre aux entreprises individuelles) n'existe que pour S1 et
+    # S14 (ménages) : ailleurs B2A3G == B2G directement (pas de composante
+    # mixte), donc cette identité n'est validée que là où B3G existe
+    # réellement comme poste distinct (tolérance < 1, comme build_b1gq).
+    sto_set = {"B2A3G", "B2G", "B3G"}
+    rows = [r for r in df if r["STO"] in sto_set]
+    by_sector = {}
+    for r in rows:
+        by_sector.setdefault(r["REF_SECTOR"], {})[r["STO"]] = r
+
+    get_id = new_id_sequence()
+    out = []
+    for sector, by_sto in by_sector.items():
+        if sto_set - by_sto.keys():
+            continue
+        values = {sto: by_sto[sto]["OBS_VALUE"] for sto in sto_set}
+        if any(v is None for v in values.values()):
+            continue
+        if abs((values["B2G"] + values["B3G"]) - values["B2A3G"]) >= 1:
+            continue
+        fid = get_id(sector)
+        for r in by_sto.values():
+            out.append({
+                "REF_SECTOR": r["REF_SECTOR"], "TIME_PERIOD": r["TIME_PERIOD"],
+                "ACCOUNTING_ENTRY": r["ACCOUNTING_ENTRY"], "STO": r["STO"],
+                "signe": 1 if r["STO"] == "B2A3G" else -1,
+                "formule": "Lien excédent brut d'exploitation et revenu mixte brut/excédent brut d'exploitation",
+                "id_formule": fid,
+            })
+    return out
+
+
 def build_signe_target_or_D(df, sto_set, target_sto, label, extra_filter=None):
     # motif commun à B5G, B6G, B8G, B9 : signe = +1 si STO==target OU entry=='D', sinon -1
     rows = [r for r in df if r["STO"] in sto_set]
@@ -283,12 +318,13 @@ def main():
     ss_ventil = build_ss_ventil(df)
     b1gq = build_b1gq(df)
     b2g = build_ebe(df)
+    b2a3g = build_b2a3g(df)
     b5g = build_b5g(df)
     b6g = build_signe_target_or_D(df, {"B6G", "B5G", "D6", "D7"}, "B6G", "Lien revenu disponible/solde revenus primaires")
     b8g = build_signe_target_or_D(df, {"B8G", "B6G", "P3", "D8"}, "B8G", "Lien solde revenus primaires/épargne")
     b9g = build_signe_target_or_D(df, {"B9", "B8G", "P5", "D9R", "D9P", "NP"}, "B9", "Lien épargne/capacité ou besoin de financement")
 
-    all_rows = b9g + b8g + b6g + b5g + b2g + b1gq + ss_ventil + ss_secteur
+    all_rows = b9g + b8g + b6g + b5g + b2a3g + b2g + b1gq + ss_ventil + ss_secteur
 
     # Même convention de guillemets que write.csv() en R : les colonnes
     # texte sont entre guillemets, les colonnes numériques ne le sont pas.
