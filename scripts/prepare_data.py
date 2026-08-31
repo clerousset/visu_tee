@@ -465,11 +465,25 @@ def main():
     # s'ajouteront de la même façon.
     poste_source = {f"{sec}|{entry}|{sto}": "DD_CNA_SUT" for sec, entry, sto in sut_added}
 
+    # secteurs réellement utilisés : au-delà des 6 de SECTEURS, la
+    # décomposition en sous-secteur des administrations publiques (voir
+    # build_ss_secteur/SOUS_SECTEURS_S13 dans regenerate_formules.py)
+    # introduit S1311, S13111, S13112, S1312, S1313, S1314 — leurs libellés
+    # existent déjà dans DD_CNA_TEE_metadata.csv, juste pas dans SECTEURS.
+    # inclut aussi les secteurs référencés uniquement comme membre d'une
+    # formule mais sans valeur propre (ex. S1312 : pas d'échelon "État
+    # fédéré" en France, la carte affiche "—" mais a quand même besoin d'un
+    # libellé de secteur dans sa phrase)
+    all_secteurs = sorted(
+        set(SECTEURS) | set(values.keys())
+        | {m["sector"] for g in formulas.values() for m in g["members"]}
+    )
+
     payload = {
         "unit": "Millions d'euros courants",
         "seed": SEED,
-        "secteurs": SECTEURS,
-        "labelsSecteur": {s: labels["REF_SECTOR"].get(s, s) for s in SECTEURS},
+        "secteurs": all_secteurs,
+        "labelsSecteur": {s: labels["REF_SECTOR"].get(s, s) for s in all_secteurs},
         "labelsSto": labels["STO"],
         "labelsEntry": labels["ACCOUNTING_ENTRY"],
         "labelsActivity": load_metadata_activite(),

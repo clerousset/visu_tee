@@ -10,6 +10,9 @@ cartes reliées à la première.
 
 Secteurs couverts : économie totale, sociétés non financières, sociétés
 financières, administrations publiques, ménages, ISBLSM. Années : 1949–2024.
+Les administrations publiques (S13) se déplient plus finement par
+sous-secteur (administration centrale, locale, sécurité sociale — voir
+« Comment ça marche » ci-dessous).
 
 ## Structure du dépôt
 
@@ -103,6 +106,16 @@ par `R/genere_formule_TEE.r` pour l'année 2024 uniquement ; le site applique
 ces mêmes identités (year-invariantes par construction des comptes
 nationaux) à toutes les années disponibles. Pour des années anciennes,
 certains postes détaillés peuvent être indisponibles.
+
+- « Ventilation en sous-secteur » se propose à n'importe quel niveau
+  d'emboîtement de la nomenclature des secteurs, pas seulement S1 -> ses 5
+  sous-secteurs : les administrations publiques (S13) se décomposent ainsi
+  en administration centrale/locale/sécurité sociale (S1311/S1313/S1314),
+  et l'administration centrale elle-même en État / organismes divers
+  (S13111/S13112) — voir `regenerate_formules.py::build_ss_secteur` (le
+  parent d'un secteur est le plus long préfixe réellement observé dans les
+  données, la nomenclature sautant des niveaux : « S1311 » existe, « S131 »
+  non).
 
 - Pour quelques postes (production, valeur ajoutée, rémunération des
   salariés, FBCF, ...) de l'économie totale, un bouton supplémentaire

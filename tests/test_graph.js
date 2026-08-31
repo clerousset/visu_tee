@@ -102,9 +102,14 @@ if (ventil) {
   const secteurF = seedFormulas2.find(f => f.label === 'Ventilation en sous-secteur');
   assert(!!secteurF, 'la graine propose une ventilation par secteur');
   if (secteurF) {
+    // évite S13 : depuis l'intégration de l'APU, S13 a sa propre
+    // ventilation en sous-secteur (vers S1311/S1313/S1314 — voir
+    // load_apu_formulas), donc un de ses postes peut légitimement proposer
+    // "Ventilation en sous-secteur" sans que ce soit un retour vers S1 —
+    // un autre secteur (ex. S11) garde le test ciblé sur le vrai bug visé.
     const s11 = G.expandFormula(secteurF.id, D.seed.sector, D.seed.entry, D.seed.sto, '2024').others
-      .find(m => m.sector !== D.seed.sector);
-    assert(!!s11, 'la ventilation par secteur de la graine a un membre dans un autre secteur');
+      .find(m => m.sector !== D.seed.sector && m.sector !== 'S13');
+    assert(!!s11, 'la ventilation par secteur de la graine a un membre dans un autre secteur (hors S13)');
     if (s11) {
       const s11Formulas = G.getFormulasFor(s11.sector, s11.entry, s11.sto, '2024');
       const s11CatF = s11Formulas.find(f => f.label === 'Ventilation en sous-catégorie');

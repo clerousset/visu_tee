@@ -2,23 +2,64 @@ library(dplyr)
 
 liste_ref_sector = c("S1", "S11", "S12", "S13", "S14", "S15")
 liste_exclus = c("B2A3N", "B4G", "D21X31")
-df = read.csv("data/DD_CNA_TEE_data.csv", sep = ";") %>% 
+# sous-secteurs des administrations publiques (S13) : le TEE les détaille
+# déjà (pas besoin d'une autre source), mais ils sont tenus à l'écart de
+# liste_ref_sector pour que seul le bloc ss_secteur ci-dessous (décomposition
+# en sous-secteur) les voie — pas les autres blocs plus bas ("Lien ..."),
+# pour rester une intégration "uniquement décomposition".
+sous_secteurs_s13 = c("S1311", "S13111", "S13112", "S1312", "S1313", "S1314")
+
+df = read.csv("data/DD_CNA_TEE_data.csv", sep = ";") %>%
     filter(TIME_PERIOD == 2024 & UNIT_MEASURE == "XDC" & REF_SECTOR %in% liste_ref_sector &
     COUNTERPART_AREA == "W0" & CONSOLIDATION == "N" & INSTR_ASSET == "_Z") %>%
     select(REF_SECTOR, TIME_PERIOD, OBS_VALUE, ACCOUNTING_ENTRY, STO, COUNTERPART_SECTOR) %>% distinct()
 
-somme_ok = df %>% filter(REF_SECTOR != "S1") %>% 
-    group_by(ACCOUNTING_ENTRY, STO) %>% summarise(sum_OBS_VALUE = sum(OBS_VALUE, na.rm = TRUE), .groups = "drop") %>%
-    left_join(df %>% filter(REF_SECTOR == "S1"), by = c("ACCOUNTING_ENTRY", "STO")) %>% 
-    filter(abs(sum_OBS_VALUE - OBS_VALUE) < 1 & !(STO %in% liste_exclus))
+df_secteurs = read.csv("data/DD_CNA_TEE_data.csv", sep = ";") %>%
+    filter(TIME_PERIOD == 2024 & UNIT_MEASURE == "XDC" & REF_SECTOR %in% c(liste_ref_sector, sous_secteurs_s13) &
+    COUNTERPART_AREA == "W0" & CONSOLIDATION == "N" & INSTR_ASSET == "_Z") %>%
+    select(REF_SECTOR, TIME_PERIOD, OBS_VALUE, ACCOUNTING_ENTRY, STO, COUNTERPART_SECTOR) %>% distinct()
 
- ss_secteur = df %>% semi_join(somme_ok, by = c("ACCOUNTING_ENTRY", "STO")) %>%
-    select(-OBS_VALUE) %>%
-   mutate(signe = if_else(REF_SECTOR == "S1", 1, -1),
-        formule = "Ventilation en sous-secteur") %>%
-   group_by(ACCOUNTING_ENTRY, STO, TIME_PERIOD) %>%
-   mutate(id_formule = cur_group_id()) %>% ungroup() %>%
-   arrange(id_formule, formule)
+# décomposition en sous-secteur, à n'importe quel niveau d'emboîtement de la
+# nomenclature REF_SECTOR (ex. S1 = S11+S12+...+S15, et séparément
+# S13 = S1311+S1313+S1314 — S1312 n'a pas de valeur propre en France, pas
+# d'échelon "État fédéré") : le parent d'un secteur est le plus long préfixe
+# RÉELLEMENT OBSERVÉ dans les données (trouve_parent_secteur), pas
+# simplement son code privé de son dernier caractère : la nomenclature des
+# sous-secteurs des administrations publiques saute des niveaux dans les
+# codes réellement publiés ("S1311" existe, "S131" non).
+trouve_parent_secteur = function(secteur, secteurs_observes) {
+  candidats = secteurs_observes[secteurs_observes != secteur & startsWith(secteur, secteurs_observes)]
+  if (length(candidats) == 0) return(NA_character_)
+  candidats[which.max(nchar(candidats))]
+}
+
+secteurs_observes = unique(df_secteurs$REF_SECTOR)
+
+parent_lookup_secteur = df_secteurs %>%
+  select(ACCOUNTING_ENTRY, TIME_PERIOD, STO, REF_SECTOR, OBS_VALUE) %>%
+  rename(parent = REF_SECTOR, parent_value = OBS_VALUE)
+
+kids_secteur = df_secteurs %>%
+  mutate(parent = sapply(REF_SECTOR, trouve_parent_secteur, secteurs_observes = secteurs_observes)) %>%
+  filter(!is.na(parent)) %>%
+  inner_join(parent_lookup_secteur, by = c("ACCOUNTING_ENTRY", "TIME_PERIOD", "STO", "parent"))
+
+somme_ok = kids_secteur %>%
+  group_by(ACCOUNTING_ENTRY, STO, TIME_PERIOD, parent, parent_value) %>%
+  summarise(sum_OBS_VALUE = sum(OBS_VALUE, na.rm = TRUE), .groups = "drop") %>%
+  filter(abs(sum_OBS_VALUE - parent_value) < 1 & !(STO %in% liste_exclus))
+
+kids_valid = kids_secteur %>% semi_join(somme_ok, by = c("ACCOUNTING_ENTRY", "STO", "TIME_PERIOD", "parent")) %>%
+  transmute(REF_SECTOR, TIME_PERIOD, ACCOUNTING_ENTRY, STO, signe = -1, parent)
+
+parents_valid = somme_ok %>%
+  transmute(REF_SECTOR = parent, TIME_PERIOD, ACCOUNTING_ENTRY, STO, signe = 1, parent)
+
+ss_secteur = bind_rows(parents_valid, kids_valid) %>%
+  mutate(formule = "Ventilation en sous-secteur") %>%
+  group_by(ACCOUNTING_ENTRY, parent, TIME_PERIOD, STO) %>%
+  mutate(id_formule = cur_group_id()) %>% ungroup() %>%
+  arrange(id_formule, formule) %>% select(-parent)
 
 # décomposition en sous-catégorie, à n'importe quel niveau d'emboîtement de
 # la nomenclature STO (ex. D4 = D41+D42+...+D45, et séparément

@@ -22,8 +22,16 @@ OUT = f"{DATA_DIR}/formules_TEE.csv"
 LISTE_REF_SECTOR = {"S1", "S11", "S12", "S13", "S14", "S15"}
 LISTE_EXCLUS = {"B2A3N", "B4G", "D21X31"}
 
+# sous-secteurs des administrations publiques (S13) : le TEE les détaille
+# déjà (pas besoin d'une autre source), mais ils sont tenus à l'écart de
+# LISTE_REF_SECTOR pour que seule build_ss_secteur (décomposition en
+# sous-secteur) les voie — pas les autres blocs ("Lien ..."), pour rester
+# une intégration "uniquement décomposition" comme demandé.
+SOUS_SECTEURS_S13 = {"S1311", "S13111", "S13112", "S1312", "S1313", "S1314"}
 
-def load_df():
+
+def load_df(extra_sectors=None):
+    allowed = LISTE_REF_SECTOR | (extra_sectors or set())
     rows = []
     with open(SRC, encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f, delimiter=";", quotechar='"')
@@ -32,7 +40,7 @@ def load_df():
                 continue
             if r["UNIT_MEASURE"] != "XDC":
                 continue
-            if r["REF_SECTOR"] not in LISTE_REF_SECTOR:
+            if r["REF_SECTOR"] not in allowed:
                 continue
             if r["COUNTERPART_AREA"] != "W0":
                 continue
@@ -75,26 +83,38 @@ def new_id_sequence():
     return get
 
 
+def find_sector_parent(sector, observed_sectors):
+    # le plus long préfixe strict de `sector` parmi les codes secteur
+    # RÉELLEMENT OBSERVÉS (pas simplement son code privé de son dernier
+    # caractère) : la nomenclature des sous-secteurs des administrations
+    # publiques saute des niveaux dans les codes réellement publiés (ex.
+    # "S1311" existe, "S131" non — le parent réel de S1311 est S13).
+    best = None
+    for candidate in observed_sectors:
+        if candidate != sector and sector.startswith(candidate):
+            if best is None or len(candidate) > len(best):
+                best = candidate
+    return best
+
+
 def build_ss_secteur(df):
     # décomposition en sous-secteur, à n'importe quel niveau d'emboîtement
     # de la nomenclature REF_SECTOR (ex. S1 = S11+S12+...+S15, et
-    # séparément S13 = S131+S132 si de tels codes sont un jour présents
-    # dans les données) : même principe que build_ss_ventil, mais appliqué
-    # à REF_SECTOR plutôt qu'à STO — le "parent" d'un secteur est son
-    # propre code privé de son dernier caractère (S131 -> S13 -> S1) ; un
-    # bloc n'est retenu que si ce parent existe bien comme secteur observé,
-    # que la somme de ses enfants directs reconstitue sa valeur (tolérance
-    # < 1), et que le poste n'est pas dans LISTE_EXCLUS. Avec le jeu de
-    # secteurs actuel (S1, S11..S15), ceci redonne exactement l'ancienne
-    # décomposition à un seul niveau (S11..S15 sont tous enfants directs de S1).
+    # séparément S13 = S1311+S1313+S1314 — S1312 n'a pas de valeur propre en
+    # France, pas d'échelon "État fédéré") : même principe que
+    # build_ss_ventil, mais appliqué à REF_SECTOR plutôt qu'à STO, et avec
+    # find_sector_parent plutôt que "code privé du dernier caractère" (voir
+    # sa docstring). Un bloc n'est retenu que si ce parent existe bien comme
+    # secteur observé, que la somme de ses enfants directs reconstitue sa
+    # valeur (tolérance < 1), et que le poste n'est pas dans LISTE_EXCLUS.
+    observed_sectors = sorted(set(r["REF_SECTOR"] for r in df))
     by_key = {(r["ACCOUNTING_ENTRY"], r["STO"], r["TIME_PERIOD"], r["REF_SECTOR"]): r for r in df}
 
     children_by_parent = {}
     for r in df:
-        sector = r["REF_SECTOR"]
-        if len(sector) < 3:
+        parent = find_sector_parent(r["REF_SECTOR"], observed_sectors)
+        if parent is None:
             continue
-        parent = sector[:-1]
         k = (r["ACCOUNTING_ENTRY"], r["STO"], r["TIME_PERIOD"], parent)
         if k not in by_key:
             continue
@@ -313,8 +333,10 @@ def build_b5g(df):
 
 def main():
     df = load_df()
+    # décomposition en sous-secteur uniquement : voir SOUS_SECTEURS_S13
+    df_secteurs = load_df(extra_sectors=SOUS_SECTEURS_S13)
 
-    ss_secteur = build_ss_secteur(df)
+    ss_secteur = build_ss_secteur(df_secteurs)
     ss_ventil = build_ss_ventil(df)
     b1gq = build_b1gq(df)
     b2g = build_ebe(df)

@@ -220,23 +220,38 @@ console.log('\n--- Test de navigation dans les ventilations ("ne pas remonter") 
     secteurPillNav.props.onClick();
     treeNav = renderNav(sandboxNav.__rendered, 'rootNav');
 
-    // dans le 2e groupe de pills (1er sous-secteur enfant), ouvre sa propre
-    // ventilation en sous-catégorie
-    const expandRowsNav = findAllNav(treeNav, n => n.props && n.props.className === 'expand-row');
-    assert(expandRowsNav.length >= 2, `au moins 2 groupes de pills après le 1er dépliage (trouvé ${expandRowsNav.length})`);
-    const childPillsNav = expandRowsNav.length >= 2 ? findAllNav(expandRowsNav[1], isPillNav) : [];
+    // cherche spécifiquement la carte de S11 (sociétés non financières),
+    // pas "le 1er enfant" ni "le 2e groupe de pills" : depuis l'intégration
+    // de l'APU, S13 a sa propre ventilation en sous-secteur (vers
+    // S1311/S1313/S1314), donc si S13 était pris comme enfant testé, un de
+    // ses postes proposerait légitimement "Ventilation en sous-secteur" ce
+    // qui casserait l'assertion ci-dessous sans rapport avec le bug visé.
+    const cardNodesNav = findAllNav(treeNav, n => n.props && n.props.className === 'card-node');
+    const s11CardNode = cardNodesNav.find(cn => textOfNav(cn).indexOf('sociétés non financières') !== -1);
+    assert(!!s11CardNode, 'la carte du sous-secteur S11 (sociétés non financières) est retrouvée après le 1er dépliage');
+
+    const s11ExpandRow = s11CardNode ? findAllNav(s11CardNode, n => n.props && n.props.className === 'expand-row')[0] : null;
+    const childPillsNav = s11ExpandRow ? findAllNav(s11ExpandRow, isPillNav) : [];
     const catPillNav = childPillsNav.find(p => textOfNav(p.props.children).indexOf('sous-catégorie') !== -1);
-    assert(!!catPillNav, "le sous-secteur enfant propose sa propre ventilation en sous-catégorie");
+    assert(!!catPillNav, "le sous-secteur enfant S11 propose sa propre ventilation en sous-catégorie");
 
     if (catPillNav) {
       catPillNav.props.onClick();
       treeNav = renderNav(sandboxNav.__rendered, 'rootNav');
 
-      const allPillsNav = findAllNav(treeNav, isPillNav).map(p => textOfNav(p.props.children));
-      const secteurPillsCount = allPillsNav.filter(t => t.indexOf('Ventilation en sous-secteur') !== -1).length;
-      assert(secteurPillsCount === 1,
-        `"Ventilation en sous-secteur" n'apparaît qu'une seule fois (sur la graine) après S1->sous-secteur->sous-catégorie ` +
-        `(trouvé ${secteurPillsCount} occurrence(s) : ${allPillsNav.filter(t => t.indexOf('sous-secteur') !== -1).join(' | ')})`);
+      // scope la vérification à la branche S11 (pas tout l'arbre) : S13 a
+      // légitimement sa propre "Ventilation en sous-secteur" (vers
+      // S1311/S1313/S1314), sans rapport avec le fait de "remonter" — la
+      // branche S11, elle, n'a aucune décomposition par secteur plus fine,
+      // donc n'importe quel "Ventilation en sous-secteur" dedans serait
+      // forcément un retour vers S1 (le bug visé par ce test).
+      const s11CardNode2 = findAllNav(treeNav, n => n.props && n.props.className === 'card-node')
+        .find(cn => textOfNav(cn).indexOf('sociétés non financières') !== -1);
+      const pillsInS11Branch = s11CardNode2 ? findAllNav(s11CardNode2, isPillNav).map(p => textOfNav(p.props.children)) : [];
+      const secteurPillsInS11 = pillsInS11Branch.filter(t => t.indexOf('Ventilation en sous-secteur') !== -1);
+      assert(secteurPillsInS11.length === 0,
+        `"Ventilation en sous-secteur" n'apparaît nulle part dans la branche S11 après S1->sous-secteur->sous-catégorie ` +
+        `(trouvé ${secteurPillsInS11.length} occurrence(s) : ${secteurPillsInS11.join(' | ')})`);
     }
   }
 }
