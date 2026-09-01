@@ -205,18 +205,22 @@
 
   // libellé complet d'un terme (poste + secteur si différent de la carte
   // d'origine), utilisé comme bulle explicative au survol d'un terme abrégé
-  function termFullLabel(m, sector) {
+  // `year` : nécessaire pour résoudre l'année effective d'un membre décalé
+  // (m.yearOffset, ex. -1 = année précédente — voir "Lien patrimoine/flux
+  // ..." et graph.js::expandFormula) en toutes lettres dans la bulle.
+  function termFullLabel(m, sector, year) {
     const label = lowerFirst(G.stoLabel(m.sto));
     const withSector = m.sector !== sector ? label + ' pour ' + sectorPhrase(m.sector) : label;
-    return m.activity ? withSector + ' — ' + lowerFirst(G.activityLabel(m.activity)) : withSector;
+    const withActivity = m.activity ? withSector + ' — ' + lowerFirst(G.activityLabel(m.activity)) : withSector;
+    return m.yearOffset ? withActivity + ' (' + (year + m.yearOffset) + ')' : withActivity;
   }
 
   // équation en toutes lettres (libellés complets, pas les codes STO), pour
   // la bulle affichée au survol d'un bouton de dépliage, avant même de cliquer
-  function formulaPreviewText(exp, sector, sto, entry, unit) {
+  function formulaPreviewText(exp, sector, sto, entry, unit, year) {
     const parts = exp.others.map(m => {
       const sign = m.effectiveSign > 0 ? '+' : '−';
-      return sign + ' ' + termFullLabel(m, sector);
+      return sign + ' ' + termFullLabel(m, sector, year);
     });
     const lhs = (unit === 'delta' ? 'variation de ' : '') + lowerFirst(G.stoLabel(sto));
     return lhs + ' = ' + parts.join(' ');
@@ -247,33 +251,41 @@
       const sign = m.effectiveSign > 0 ? '+' : '−';
       const sectorTag = m.sector !== sector ? ' (' + m.sector + ')' : '';
       const activityTag = m.activity ? ' [' + m.activity + ']' : '';
+      const yearTag = m.yearOffset ? ' (' + (year + m.yearOffset) + ')' : '';
       eqNodes.push(h('span', {
-        key: i, className: 'formula-eq-term', title: termFullLabel(m, sector),
-      }, sign + ' ' + codePrefix + stoWithEntry(m.sto, m.entry) + sectorTag + activityTag));
+        key: i, className: 'formula-eq-term', title: termFullLabel(m, sector, year),
+      }, sign + ' ' + codePrefix + stoWithEntry(m.sto, m.entry) + sectorTag + activityTag + yearTag));
     });
     return h('div', { className: 'formula-group' }, [
       h('div', { className: 'formula-eq', key: 'eq' }, eqNodes),
       !exp.verified ? h('div', { className: 'formula-warning', key: 'warn' }, '⚠ ' + UNVERIFIED_MESSAGE) : null,
       h('div', { className: 'formula-children', key: 'ch' },
-        exp.others.map(m =>
-          h(CardNode, {
-            key: m.sector + '|' + m.entry + '|' + m.sto + (m.activity ? '@' + m.activity : ''),
+        exp.others.map(m => {
+          // un membre décalé (yearOffset) déplie une carte à SA propre
+          // année (ex. "LE_N (2019)" sous une carte 2020) — la phrase de
+          // cette carte affichera d'elle-même cette année, ce qui suffit à
+          // signaler le décalage sans badge dédié ; toute décomposition
+          // ultérieure sur cette carte hérite naturellement de son année.
+          const childYear = year + (m.yearOffset || 0);
+          const childSuffix = m.sector + '|' + m.entry + '|' + m.sto + (m.activity ? '@' + m.activity : '') + (m.yearOffset ? '#' + m.yearOffset : '');
+          return h(CardNode, {
+            key: childSuffix,
             sector: m.sector,
             entry: m.entry,
             sto: m.sto,
             activity: m.activity || undefined,
-            year,
+            year: childYear,
             effectiveSign: m.effectiveSign,
             depth: depth + 1,
             excludeFormulaId: formulaId,
-            path: path + '>' + formulaId + '>' + m.sector + '|' + m.entry + '|' + m.sto + (m.activity ? '@' + m.activity : ''),
+            path: path + '>' + formulaId + '>' + childSuffix,
             expandedTree,
             onToggle,
             unit,
             pctRoot,
             onSetRoot,
-          })
-        )
+          });
+        })
       ),
     ]);
   }
@@ -296,7 +308,7 @@
         // bulle explicative : l'équation en toutes lettres, visible avant
         // même de cliquer sur le bouton pour déplier l'identité
         const exp = G.expandFormula(f.id, sector, entry, sto, year, activity, unit, pctRoot);
-        const preview = exp ? formulaPreviewText(exp, sector, sto, entry, unit) : undefined;
+        const preview = exp ? formulaPreviewText(exp, sector, sto, entry, unit, year) : undefined;
         const title = f.verified ? preview : [preview, '⚠ ' + UNVERIFIED_MESSAGE].filter(Boolean).join('\n');
         return h('button', {
           key: f.id,

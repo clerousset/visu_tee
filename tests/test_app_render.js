@@ -1002,5 +1002,121 @@ console.log('\n--- Test de la barre de recherche d\'agrégats ---');
   assert(rootSto9 === 'D29', `la carte racine est bien devenue D29 après sélection dans la recherche (trouvé "${rootSto9}")`);
 }
 
+// --- Test du membre décalé d'une année (yearOffset) : "Lien
+// patrimoine/flux, réévaluations et autres changements de volume"
+// (LE_N(N) = LE_N(N-1) + F(N) + K7(N) + KA(N)) est la seule identité où un
+// membre déplié devient une carte À UNE AUTRE ANNÉE que celle affichée
+// partout ailleurs sur la page — vérifie que la carte "année précédente"
+// affiche bien SA propre année dans sa phrase (pas celle de la carte
+// parente), et que l'équation dépliée tague ce terme avec l'année résolue.
+console.log('\n--- Test du membre décalé d\'une année (patrimoine) ---');
+{
+  function statefulUseStatePat(initial) {
+    const hooks = curHooksPat;
+    const i = curIdxPat++;
+    if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial;
+    return [hooks[i], (v) => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }];
+  }
+  let curHooksPat = null, curIdxPat = 0;
+  const sandboxPat = {
+    console,
+    document: makeFakeDom(),
+    React: { createElement: mockCreateElement, useState: statefulUseStatePat },
+    ReactDOM: { createRoot: () => ({ render: (el) => { sandboxPat.__rendered = el; } }) },
+  };
+  sandboxPat.window = sandboxPat;
+  vm.createContext(sandboxPat);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'data', 'tee_graph.js'), 'utf8'), sandboxPat);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'graph.js'), 'utf8'), sandboxPat);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'app.js'), 'utf8'), sandboxPat);
+  const DPat = vm.runInContext('TEE_GRAPH', sandboxPat);
+  const GPat = vm.runInContext('TeeGraphLib', sandboxPat).makeGraph(DPat);
+
+  const hookStoresPat = {};
+  function renderPat(el, pathKey) {
+    if (el === null || el === undefined || typeof el === 'boolean' || typeof el === 'string' || typeof el === 'number') return el;
+    if (Array.isArray(el)) return el.map((e, i) => renderPat(e, pathKey + '.' + i));
+    if (typeof el !== 'object' || !('type' in el)) return el;
+    const t = el.type;
+    if (typeof t === 'function') {
+      const name = t.displayName || t.name || 'anon';
+      const key = pathKey + '/' + name + (el.props && el.props.key !== undefined ? ':' + el.props.key : '');
+      if (!hookStoresPat[key]) hookStoresPat[key] = [];
+      curHooksPat = hookStoresPat[key]; curIdxPat = 0;
+      return { __rendered: renderPat(t(el.props), key), __el: el };
+    }
+    return { type: t, props: Object.assign({}, el.props, el.props && el.props.children !== undefined ? { children: renderPat(el.props.children, pathKey + '.c') } : {}) };
+  }
+  function findAllPat(node, matchFn, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    if (node.__rendered !== undefined) { findAllPat(node.__rendered, matchFn, acc); return acc; }
+    if (Array.isArray(node)) { node.forEach(n => findAllPat(n, matchFn, acc)); return acc; }
+    if (matchFn(node)) acc.push(node);
+    if (node.props && node.props.children) findAllPat(node.props.children, matchFn, acc);
+    return acc;
+  }
+  function textOfPat(n) {
+    if (typeof n === 'string' || typeof n === 'number') return String(n);
+    if (Array.isArray(n)) return n.map(textOfPat).join('');
+    if (n && n.__rendered !== undefined) return textOfPat(n.__rendered);
+    if (n && n.props && n.props.children !== undefined) return textOfPat(n.props.children);
+    return '';
+  }
+  const isSelectPat = n => n.type === 'select';
+  const isPillPat = n => n.type === 'button' && n.props.className && n.props.className.indexOf('pill') === 0;
+  const isSentencePat = n => n.props && n.props.className === 'card-sentence';
+  const isEqTermPat = n => n.props && n.props.className === 'formula-eq-term';
+
+  const patrimoineFidPat = Object.keys(DPat.formulas).find(fid => DPat.formulas[fid].label.indexOf('Lien patrimoine/flux') === 0);
+  assert(!!patrimoineFidPat, 'au moins une identité "Lien patrimoine/flux..." existe dans le graphe (préparation du test UI)');
+
+  if (patrimoineFidPat) {
+    const targetPat = DPat.formulas[patrimoineFidPat].target;
+    // change de secteur au besoin (le sélecteur "poste de départ" ne
+    // propose que les postes du secteur courant), puis choisit le poste cible
+    let treePat = renderPat(sandboxPat.__rendered, 'rootPat');
+    let selectsPat = findAllPat(treePat, isSelectPat);
+    // le sélecteur "poste de départ" ne propose que les postes du secteur
+    // courant (la graine) ; on s'y limite ici pour garder le test simple.
+    assert(targetPat.sector === DPat.seed.sector, `l'identité patrimoine testée cible le secteur de la graine (trouvé ${targetPat.sector})`);
+    const posteOption = selectsPat[0].props.children.find(o => o.props.value === targetPat.entry + '|' + targetPat.sto);
+    assert(!!posteOption, `le poste cible ${targetPat.sto} est proposé dans le sélecteur de poste de départ`);
+    if (posteOption) {
+      selectsPat[0].props.onChange({ target: { value: posteOption.props.value } });
+      treePat = renderPat(sandboxPat.__rendered, 'rootPat');
+      selectsPat = findAllPat(treePat, isSelectPat);
+
+      // se place sur une année vérifiée (pas la première, qui n'a pas de N-1)
+      const yearsPat = DPat.formulas[patrimoineFidPat].years;
+      const testYear = yearsPat[Math.floor(yearsPat.length / 2)];
+      selectsPat[1].props.onChange({ target: { value: testYear } });
+      treePat = renderPat(sandboxPat.__rendered, 'rootPat');
+
+      const pillsPat = findAllPat(treePat, isPillPat);
+      const patrimoinePill = pillsPat.find(p => textOfPat(p).indexOf('Lien patrimoine/flux') !== -1);
+      assert(!!patrimoinePill, 'la carte cible propose bien le bouton "Lien patrimoine/flux..."');
+
+      if (patrimoinePill) {
+        patrimoinePill.props.onClick();
+        treePat = renderPat(sandboxPat.__rendered, 'rootPat');
+
+        const eqTermsPat = findAllPat(treePat, isEqTermPat).map(textOfPat);
+        const shiftedTermPat = eqTermsPat.find(t => t.indexOf('(' + (+testYear - 1) + ')') !== -1);
+        assert(!!shiftedTermPat,
+          `l'équation dépliée tague le terme "année précédente" avec l'année ${+testYear - 1} (trouvé : ${eqTermsPat.join(' | ')})`);
+
+        const sentencesPat = findAllPat(treePat, isSentencePat).map(textOfPat);
+        const shiftedSentence = sentencesPat.find(s => s.indexOf('de ' + (+testYear - 1) + ' pour') !== -1);
+        assert(!!shiftedSentence,
+          `la carte "année précédente" affiche bien sa propre phrase à l'année ${+testYear - 1}, pas ${testYear}`);
+        const currentYearStillShown = sentencesPat.some(s => s.indexOf('de ' + testYear + ' pour') !== -1);
+        assert(currentYearStillShown,
+          `les autres cartes du même dépliage restent à l'année ${testYear} (pas toutes décalées)`);
+      }
+    }
+  }
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

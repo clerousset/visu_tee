@@ -169,6 +169,18 @@ certains postes détaillés peuvent être indisponibles.
   pour S1, mais pas pour S14 — le bouton racine `P31 = CP01+...` n'apparaît
   donc que sur la carte S1 (chaque division continue de se déplier
   normalement pour tous les secteurs, S14 y compris, une fois qu'on y est).
+- Le bilan patrimonial (poste `LE_N`, « Patrimoine en fin d'année », depuis
+  `data/DD_CNA_PATRIMOINE_data.csv`) se réconcilie avec les flux qui
+  expliquent sa variation d'une année sur l'autre : `LE_N(N) = LE_N(N-1) +
+  F(N) + K7_ACTIFS_TOTAL(N) + KA_ACTIFS_TOTAL(N)` (flux financiers,
+  réévaluations, autres changements de volume et ajustements). C'est la
+  seule identité du site où un membre porte sur une AUTRE année que la
+  carte affichée : le terme « année précédente » ouvre une carte à sa
+  propre année (visible dans sa phrase et taguée dans l'équation, ex.
+  « PAT_LE_N_F (2005) »), via un décalage d'année par membre
+  (`yearOffset`) dans `graph.js::expandFormula`/`sameMember`. `LE_N` se
+  déplie aussi par classe d'instrument financier, comme le poste `F` du
+  TEE (bouton « Ventilation en instrument financier (patrimoine) »).
 - Une identité qui n'est vérifiée que pour certaines années (les identités
   ci-dessus qui ne sont pas vraies par construction) reste proposée en
   dehors de ces années plutôt que masquée,

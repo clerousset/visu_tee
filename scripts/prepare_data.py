@@ -611,6 +611,155 @@ def load_generic_formulas(values, formula_specs):
     return formulas, index_extra
 
 
+DATA_PATRIMOINE = f"{DATA_DIR}/DD_CNA_PATRIMOINE_data.csv"
+# les 4 postes du bilan patrimonial dont on a besoin (voir
+# load_patrimoine_reconciliation_formulas) ; "F" (flux) existe déjà comme
+# poste dans le TEE avec une valeur légèrement différente (autre table,
+# même grandeur) — d'où le préfixe "PAT_" pour éviter toute collision.
+PATRIMOINE_STOS = ["LE_N", "F", "K7_ACTIFS_TOTAL", "KA_ACTIFS_TOTAL"]
+
+
+def patrimoine_pseudo_sto(sto, instr):
+    return f"PAT_{sto}_{instr}"
+
+
+def add_missing_patrimoine_values(values, src_csv=None):
+    # bilan patrimonial (poste LE_N, "Patrimoine en fin d'année") et sa
+    # réconciliation avec les flux (F), les réévaluations
+    # (K7_ACTIFS_TOTAL) et les autres changements de volume et ajustements
+    # (KA_ACTIFS_TOTAL) — voir load_patrimoine_reconciliation_formulas.
+    # Fichier séparé du TEE (DD_CNA_PATRIMOINE_data.csv), avec la même
+    # dimension INSTR_ASSET emboîtée que le poste F du TEE (voir
+    # add_missing_f_instruments), traitée ici pareil (le code devient le
+    # poste), mais préfixé par patrimoine_pseudo_sto (voir PATRIMOINE_STOS).
+    # Restreint à SECTEURS.
+    src_csv = src_csv or DATA_PATRIMOINE
+    stos = set(PATRIMOINE_STOS)
+    added = set()
+    max_year = _max_loaded_year(values)
+    with open(src_csv, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["STO"] not in stos:
+                continue
+            if row["REF_SECTOR"] not in SECTEURS:
+                continue
+            if row["UNIT_MEASURE"] != "XDC":
+                continue
+            if row["PRICES"] != "V":
+                continue
+            if row["COUNTERPART_AREA"] != "W0":
+                continue
+            if row["MATURITY"] != "_Z":
+                continue
+            sec, entry, year = row["REF_SECTOR"], row["ACCOUNTING_ENTRY"], row["TIME_PERIOD"]
+            if max_year is not None and int(year) > max_year:
+                continue
+            val = row["OBS_VALUE"]
+            if not val:
+                continue
+            code = patrimoine_pseudo_sto(row["STO"], row["INSTR_ASSET"])
+            bucket = values.setdefault(sec, {}).setdefault(entry, {}).setdefault(code, {})
+            if year not in bucket:
+                bucket[year] = round(float(val), 1)
+            added.add((sec, entry, code))
+    return added
+
+
+def add_missing_patrimoine_labels(sto_labels, codes):
+    # libellé composite "libellé du poste — libellé de l'instrument" pour
+    # chaque pseudo-poste PAT_{sto}_{instrument} (voir
+    # add_missing_patrimoine_values), à partir du libellé du poste
+    # (DD_CNA_PATRIMOINE_metadata.csv — "F" a déjà le sien depuis le TEE)
+    # et de celui de l'instrument (déjà complété par
+    # add_missing_instrument_labels). Le cas agrégé (instrument "F",
+    # "toutes classes") garde juste le libellé du poste.
+    base_labels = {}
+    with open(f"{DATA_DIR}/DD_CNA_PATRIMOINE_metadata.csv", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["COD_VAR"] == "STO":
+                base_labels.setdefault(row["COD_MOD"], row["LIB_MOD"])
+                if row["COD_MOD"] not in sto_labels:
+                    sto_labels[row["COD_MOD"]] = row["LIB_MOD"]
+
+    for code in codes:
+        if code in sto_labels:
+            continue
+        sto = next((s for s in PATRIMOINE_STOS if code.startswith(f"PAT_{s}_")), None)
+        if sto is None:
+            continue
+        instr = code[len(f"PAT_{sto}_"):]
+        sto_label = base_labels.get(sto, sto)
+        sto_labels[code] = sto_label if instr == "F" else f"{sto_label} — {sto_labels.get(instr, instr)}"
+
+
+def load_patrimoine_reconciliation_formulas(values, codes):
+    # LE_N(N) = LE_N(N-1) + F(N) + K7_ACTIFS_TOTAL(N) + KA_ACTIFS_TOTAL(N) :
+    # la position patrimoniale de clôture d'une année est celle de l'année
+    # précédente, plus les flux financiers, les réévaluations et les
+    # autres changements de volume de l'année (vérifié avant d'implémenter :
+    # 3828/4020 combinaisons secteur×instrument×position×année concordent
+    # exactement, le reste à de l'arrondi près). Première identité où un
+    # membre porte sur une AUTRE année que la cible (yearOffset, voir
+    # graph.js::expandFormula) : LE_N apparaît deux fois dans `members`,
+    # une fois comme cible (yearOffset implicite 0) et une fois comme
+    # membre décalé (yearOffset -1) — sameMember() les distingue par ce
+    # décalage, sans quoi le second serait confondu avec la cible et
+    # disparaîtrait du dépliage.
+    label = "Lien patrimoine/flux, réévaluations et autres changements de volume"
+    formulas = {}
+    index_extra = {}
+    le_n_prefix = "PAT_LE_N_"
+    le_n_codes = sorted(c for c in codes if c.startswith(le_n_prefix))
+    for sector in SECTEURS:
+        for entry in ("D", "C"):
+            for le_n_code in le_n_codes:
+                instr = le_n_code[len(le_n_prefix):]
+                f_code = patrimoine_pseudo_sto("F", instr)
+                k7_code = patrimoine_pseudo_sto("K7_ACTIFS_TOTAL", instr)
+                ka_code = patrimoine_pseudo_sto("KA_ACTIFS_TOTAL", instr)
+                by_entry = values.get(sector) or {}
+                le_n_series = ((by_entry.get(entry) or {}).get(le_n_code)) or {}
+                f_series = ((by_entry.get(entry) or {}).get(f_code)) or {}
+                k7_series = ((by_entry.get(entry) or {}).get(k7_code)) or {}
+                ka_series = ((by_entry.get(entry) or {}).get(ka_code)) or {}
+                if not le_n_series:
+                    continue
+                valid_years = []
+                for year, target_val in le_n_series.items():
+                    prev_val = le_n_series.get(str(int(year) - 1))
+                    fv, k7v, kav = f_series.get(year), k7_series.get(year), ka_series.get(year)
+                    if prev_val is None or fv is None or k7v is None or kav is None:
+                        continue
+                    if abs(target_val - (prev_val + fv + k7v + kav)) < 1:
+                        valid_years.append(year)
+                if not valid_years:
+                    continue
+                fid = f"{label}|{sector}-{entry}-{instr}"
+                member_dicts = [
+                    {"sector": sector, "entry": entry, "sto": le_n_code, "signe": 1},
+                    {"sector": sector, "entry": entry, "sto": le_n_code, "signe": -1, "yearOffset": -1},
+                    {"sector": sector, "entry": entry, "sto": f_code, "signe": -1},
+                    {"sector": sector, "entry": entry, "sto": k7_code, "signe": -1},
+                    {"sector": sector, "entry": entry, "sto": ka_code, "signe": -1},
+                ]
+                formulas[fid] = {
+                    "label": label,
+                    "target": member_dicts[0],
+                    "members": member_dicts,
+                    "years": sorted(valid_years),
+                }
+                seen_idx = set()
+                for m in member_dicts:
+                    idxkey = f"{m['sector']}|{m['entry']}|{m['sto']}"
+                    if idxkey in seen_idx:
+                        continue
+                    seen_idx.add(idxkey)
+                    index_extra.setdefault(idxkey, []).append(fid)
+    return formulas, index_extra
+
+
 def main():
     src_data = sys.argv[1] if len(sys.argv) > 1 else f"{DATA_DIR}/DD_CNA_TEE_data.csv"
     labels = load_metadata()
@@ -709,6 +858,14 @@ def main():
     add_missing_instrument_labels(labels["STO"])
     coicop_added = add_missing_coicop_values(values)
     add_missing_coicop_labels(labels["STO"])
+    # bilan patrimonial (LE_N) et sa réconciliation avec les flux,
+    # réévaluations et autres changements de volume (voir
+    # load_patrimoine_reconciliation_formulas) : chargé après les autres
+    # add_missing_* pour que _max_loaded_year reflète déjà tout ce qui a
+    # été complété jusqu'ici.
+    patrimoine_added = add_missing_patrimoine_values(values)
+    patrimoine_codes = {c for _, _, c in patrimoine_added}
+    add_missing_patrimoine_labels(labels["STO"], patrimoine_codes)
     tee_generic_formulas, tee_generic_index = load_generic_formulas(
         values, B9FX9_FORMULA + B9F_FORMULA + P31_COICOP_TOP_FORMULA)
     formulas.update(tee_generic_formulas)
@@ -727,6 +884,18 @@ def main():
     for idxkey, ids in coicop_index.items():
         index.setdefault(idxkey, []).extend(ids)
 
+    patrimoine_instr_formulas, patrimoine_instr_index = load_nested_code_formulas(
+        values, patrimoine_codes, "Ventilation en instrument financier (patrimoine)")
+    formulas.update(patrimoine_instr_formulas)
+    for idxkey, ids in patrimoine_instr_index.items():
+        index.setdefault(idxkey, []).extend(ids)
+
+    patrimoine_reco_formulas, patrimoine_reco_index = load_patrimoine_reconciliation_formulas(
+        values, patrimoine_codes)
+    formulas.update(patrimoine_reco_formulas)
+    for idxkey, ids in patrimoine_reco_index.items():
+        index.setdefault(idxkey, []).extend(ids)
+
     # source des données affichée en petit sur chaque carte (site/app.js,
     # graph.js::sourceFor) : "DD_CNA_TEE" par défaut (non stockée), sauf
     # exception explicite ici. instrument_added (classes d'instruments
@@ -737,6 +906,7 @@ def main():
     # de la même façon.
     poste_source = {f"{sec}|{entry}|{sto}": "DD_CNA_SUT" for sec, entry, sto in sut_added}
     poste_source.update({f"{sec}|{entry}|{sto}": "DD_CNA_CONSO_MENAGES_COICOP" for sec, entry, sto in coicop_added})
+    poste_source.update({f"{sec}|{entry}|{sto}": "DD_CNA_PATRIMOINE" for sec, entry, sto in patrimoine_added})
 
     # secteurs réellement utilisés : au-delà des 6 de SECTEURS, la
     # décomposition en sous-secteur des administrations publiques (voir

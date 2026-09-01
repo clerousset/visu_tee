@@ -257,5 +257,44 @@ assert(emptyBar.segments.length === 0 && emptyBar.total === 0, 'stackedBarGeomet
   }
 }
 
+// 7) membre décalé d'une année (yearOffset) : "Lien patrimoine/flux,
+// réévaluations et autres changements de volume" (LE_N(N) = LE_N(N-1) +
+// F(N) + K7(N) + KA(N)) est la seule identité du graphe où un membre porte
+// sur une AUTRE année que la cible — vérifie que le moteur la résout
+// correctement (valeur au bon décalage, pas de confusion entre la cible et
+// le membre "année précédente" qui partage pourtant le même poste).
+{
+  const patrimoineFid = Object.keys(D.formulas).find(fid => D.formulas[fid].label.indexOf('Lien patrimoine/flux') === 0);
+  assert(!!patrimoineFid, 'au moins une identité "Lien patrimoine/flux..." existe dans le graphe');
+  if (patrimoineFid) {
+    const f = D.formulas[patrimoineFid];
+    const target = f.target;
+    const years = f.years;
+    const year = years[Math.floor(years.length / 2)]; // une année vérifiée, pas la première (a besoin de N-1)
+    const exp = G.expandFormula(patrimoineFid, target.sector, target.entry, target.sto, year);
+    assert(!!exp, `expandFormula résout "${patrimoineFid}" depuis sa cible`);
+    if (exp) {
+      const shifted = exp.others.find(m => m.yearOffset && m.yearOffset !== 0);
+      assert(!!shifted, 'un membre de l\'identité porte un yearOffset non nul (le terme "année précédente")');
+      if (shifted) {
+        assert(shifted.sto === target.sto,
+          `le membre décalé porte sur le même poste que la cible (${shifted.sto} === ${target.sto})`);
+        const directValue = G.getValue(target.sector, target.entry, target.sto, String(+year + shifted.yearOffset));
+        assert(shifted.value === directValue,
+          `la valeur du membre décalé (${shifted.value}) est bien celle de l'année ${+year + shifted.yearOffset} (${directValue}), pas celle de ${year}`);
+        // le membre décalé ne doit JAMAIS être confondu avec la cible :
+        // sameMember() les distingue par yearOffset malgré le même poste
+        const notShifted = exp.others.filter(m => m.sto === target.sto && (m.yearOffset || 0) === 0);
+        assert(notShifted.length === 0,
+          'aucun autre membre "même poste, même année que la cible" ne fuite dans le dépliage (la cible elle-même est exclue)');
+      }
+      const reconstructed = exp.others.reduce((acc, m) => acc + (m.value === null ? NaN : m.effectiveSign * m.value), 0);
+      const rootVal = G.getValue(target.sector, target.entry, target.sto, year);
+      const diff = Math.abs(reconstructed - rootVal);
+      assert(diff < 1, `identité comptable avec membre décalé : cible = Σ(termes, dont un décalé) à ${year} (écart=${diff.toFixed(2)})`);
+    }
+  }
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

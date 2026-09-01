@@ -135,9 +135,19 @@
       return formulas;
     }
 
-    function sameMember(m, sector, entry, sto, activity) {
+    // `yearOffset` distingue, pour un membre qui partage par ailleurs le
+    // même (sector,entry,sto,activity) que la cible, une valeur portant sur
+    // une AUTRE année (ex. "Lien patrimoine/flux..." : LE_N(N) = LE_N(N-1)
+    // + ...) — sans lui, le membre "année précédente" serait confondu avec
+    // la cible elle-même (même poste) et disparaîtrait du dépliage.
+    // `originYearOffset` (par défaut 0) permet de retrouver un membre
+    // précis quand PLUSIEURS partagent le même (sector,entry,sto,activity)
+    // à des décalages différents ; l'origine d'un dépliage (la carte
+    // affichée) est toujours à son propre décalage 0 par définition.
+    function sameMember(m, sector, entry, sto, activity, originYearOffset) {
       return m.sector === sector && m.entry === entry && m.sto === sto
-        && (m.activity || null) === (activity || null);
+        && (m.activity || null) === (activity || null)
+        && (m.yearOffset || 0) === (originYearOffset || 0);
     }
 
     // Calcule, pour une formule donnée et un poste d'origine (qui doit être
@@ -146,23 +156,29 @@
     // `originActivity` distingue le poste TEE ordinaire (undefined/null) de
     // sa ventilation par activité du SUT (voir "Ventilation en activité") :
     // les membres d'une telle formule partagent tous le même (sector,entry,
-    // sto), seule l'activité les distingue.
+    // sto), seule l'activité les distingue. Un membre avec `yearOffset` est
+    // évalué à l'année de la carte affichée décalée d'autant (ex. -1 = année
+    // précédente) — la carte qu'il déplie hérite de cette année décalée
+    // (voir app.js::FormulaGroup), donc tout se recompose correctement en
+    // cascade si on déplie la même identité plusieurs fois de suite.
     function expandFormula(id, originSector, originEntry, originSto, year, originActivity, unit, pctRoot) {
       const f = D.formulas[id];
       if (!f) return null;
-      const originMember = f.members.find(m => sameMember(m, originSector, originEntry, originSto, originActivity));
+      const isOrigin = m => sameMember(m, originSector, originEntry, originSto, originActivity, 0);
+      const originMember = f.members.find(isOrigin);
       if (!originMember) return null;
       const originSigne = originMember.signe;
       const others = f.members
-        .filter(m => !sameMember(m, originSector, originEntry, originSto, originActivity))
+        .filter(m => !isOrigin(m))
         .map(m => ({
           sector: m.sector,
           entry: m.entry,
           sto: m.sto,
           activity: m.activity || null,
           signe: m.signe,
+          yearOffset: m.yearOffset || 0,
           effectiveSign: -originSigne * m.signe,
-          value: getValue(m.sector, m.entry, m.sto, year, m.activity, unit, pctRoot),
+          value: getValue(m.sector, m.entry, m.sto, (+year) + (m.yearOffset || 0), m.activity, unit, pctRoot),
         }));
       // les soldes (position "B") passent toujours en premier à l'affichage
       // (tri stable : l'ordre relatif du reste, tel que dans formules_TEE.csv,
@@ -177,7 +193,7 @@
       const f = D.formulas[id];
       let sum = 0;
       for (const m of f.members) {
-        const v = getValue(m.sector, m.entry, m.sto, year, m.activity);
+        const v = getValue(m.sector, m.entry, m.sto, (+year) + (m.yearOffset || 0), m.activity);
         if (v === null) return null;
         sum += m.signe * v;
       }
