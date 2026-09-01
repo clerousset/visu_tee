@@ -131,7 +131,14 @@ certains postes détaillés peuvent être indisponibles.
   n'existent que dans le SUT (`TSPP`, total des emplois en prix
   d'acquisition ; `TSBP`, en prix de base — ce dernier n'a en pratique
   jamais de décomposition qui concorde avec les données).
-- Une identité qui n'est vérifiée que pour certaines années (les deux
+- Le TEE lui-même fournit une identité du même genre, purement interne cette
+  fois : `B9FX9 = B9F - B9`, l'écart statistique entre la capacité/besoin de
+  financement mesuré par les comptes financiers (B9F) et non-financiers
+  (B9) — voir `scripts/prepare_data.py::B9FX9_FORMULA`. Vérifiée 1996-2020
+  (2021 pour la plupart des secteurs), pas au-delà (données encore
+  provisoires) : c'est un écart de mesure réellement sujet à révision, pas
+  une identité comptable vraie par construction comme les autres.
+- Une identité qui n'est vérifiée que pour certaines années (les trois
   ci-dessus) reste proposée en dehors de ces années plutôt que masquée,
   mais avec un avertissement « ⚠ » sur le bouton et au-dessus de l'équation
   dépliée (« Formule non vérifiée dans les données pour cette année ») :

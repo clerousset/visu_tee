@@ -335,18 +335,35 @@ def add_missing_sut_values(values):
     return added
 
 
-def load_lien_sut_formulas(values):
-    # identités générales du SUT au niveau agrégé (voir sut_formulas.py) :
-    # la structure (quels postes la composent) est invariante par secteur et
-    # par année par construction des comptes nationaux, mais sa
-    # disponibilité effective varie — revalidée ici directement sur `values`
-    # (déjà complété par add_missing_sut_values), plutôt que réutiliser le
-    # calcul déjà fait pour data/formules_SUT.csv, pour garantir l'accord
-    # avec ce qui est réellement affiché (cf. load_activite_formulas : "les
-    # deux sources ne sont pas toujours au même millésime").
+# B9FX9 = B9F - B9 : écart entre la capacité/besoin de financement mesuré
+# par les comptes financiers (B9F) et par les comptes non-financiers (B9) —
+# l'"écart statistique" entre ces deux approches indépendantes du même
+# concept. Contrairement aux identités TEE "structurelles" (vraies par
+# construction, seulement limitées par la disponibilité des données),
+# celle-ci est un écart de mesure réellement sujet à révision : validée
+# 1996-2020 pour les 6 secteurs, mais pas pour 2021 (4/6) ni 2022-2023
+# (0/6, données encore provisoires) — d'où load_generic_formulas plutôt
+# qu'un bloc figé à une année de référence comme dans regenerate_formules.py.
+B9FX9_FORMULA = [
+    ("Lien écart statistique/soldes financier et non-financier", ("_Z", "B9FX9"),
+        [("B", "B9F", 1), ("B", "B9", -1)]),
+]
+
+
+def load_generic_formulas(values, formula_specs):
+    # identités "à plat" (pas de dimension activité, un seul membre cible)
+    # dont la structure est invariante par secteur et par année par
+    # construction des comptes nationaux, mais dont la disponibilité ou la
+    # concordance effective varie — revalidées ici directement sur `values`
+    # (déjà complété par add_missing_sut_values pour LIEN_SUT_FORMULAS),
+    # plutôt que réutiliser un calcul déjà fait ailleurs (ex.
+    # data/formules_SUT.csv), pour garantir l'accord avec ce qui est
+    # réellement affiché (cf. load_activite_formulas : "les deux sources ne
+    # sont pas toujours au même millésime"). Partagée par LIEN_SUT_FORMULAS
+    # (sut_formulas.py) et B9FX9_FORMULA (ci-dessus).
     formulas = {}
     index_extra = {}  # "sector|entry|sto" -> [fid,...]
-    for label, target, members in LIEN_SUT_FORMULAS:
+    for label, target, members in formula_specs:
         t_entry, t_sto = target
         for sector in SECTEURS:
             target_series = (((values.get(sector) or {}).get(t_entry) or {}).get(t_sto) or {})
@@ -432,6 +449,12 @@ def main():
         lien_sut_keys.add(target)
         lien_sut_keys.update((entry, sto) for entry, sto, _ in members)
     needed_keys |= {(sector, entry, sto) for sector in SECTEURS for entry, sto in lien_sut_keys}
+    # et pour B9F/B9FX9 (voir B9FX9_FORMULA) : ni l'un ni l'autre n'est
+    # référencé par une formule TEE existante. B9FX9 est enregistré avec
+    # ACCOUNTING_ENTRY == "_Z" (pas "B" comme B9/B9F) : ce n'est pas un
+    # poste ressource/emploi/solde, mais un écart de mesure.
+    needed_keys |= {(sector, "B", "B9F") for sector in SECTEURS}
+    needed_keys |= {(sector, "_Z", "B9FX9") for sector in SECTEURS}
 
     values = load_values(src_data, needed_keys)
 
@@ -453,9 +476,16 @@ def main():
     # avant de revalider/câbler ces identités.
     sut_added = add_missing_sut_values(values)
     add_missing_sto_labels(labels["STO"])
-    lien_formulas, lien_index = load_lien_sut_formulas(values)
+    lien_formulas, lien_index = load_generic_formulas(values, LIEN_SUT_FORMULAS)
     formulas.update(lien_formulas)
     for idxkey, ids in lien_index.items():
+        index.setdefault(idxkey, []).extend(ids)
+
+    # B9FX9 = B9F - B9 (voir B9FX9_FORMULA) : même mécanisme, pas de source
+    # à compléter (B9F/B9FX9 viennent déjà du TEE, voir needed_keys plus haut).
+    b9fx9_formulas, b9fx9_index = load_generic_formulas(values, B9FX9_FORMULA)
+    formulas.update(b9fx9_formulas)
+    for idxkey, ids in b9fx9_index.items():
         index.setdefault(idxkey, []).extend(ids)
 
     # source des données affichée en petit sur chaque carte (site/app.js,
