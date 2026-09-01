@@ -144,7 +144,17 @@ certains postes détaillés peuvent être indisponibles.
   partout où `B9F` est publié (1996-2023 ; `F` n'a pas de variante « total »
   standard `INSTR_ASSET == "_Z"` comme les autres postes, son total porte le
   code `INSTR_ASSET == "F"` lui-même, chargé séparément par
-  `add_missing_f_totals`).
+  `add_missing_f_instruments`).
+- Ce même poste `F` se déplie aussi par classe d'instrument financier
+  (numéraire et dépôts, titres de créance, crédits, actions, ...), à
+  n'importe quel niveau d'emboîtement — ex. `F = F1+...+F8`, puis
+  `F5 = F51+F52`, puis `F51 = F511+F512+F519` — via un bouton « Ventilation
+  en instrument financier », même principe que « Ventilation en
+  sous-secteur »/« en sous-catégorie » (y compris la règle de ne se proposer
+  que depuis la carte cible). Voir `load_f_instrument_formulas` : les codes
+  `INSTR_ASSET` (F1, F51, ...) sont traités comme des postes à part entière
+  (aucun autre poste STO ne commence par « F »), validée par
+  secteur/position/année comme B9F/B9FX9 ci-dessus.
 - Une identité qui n'est vérifiée que pour certaines années (les identités
   ci-dessus qui ne sont pas vraies par construction) reste proposée en
   dehors de ces années plutôt que masquée,

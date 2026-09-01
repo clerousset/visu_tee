@@ -68,6 +68,19 @@ def add_missing_sto_labels(sto_labels):
                 sto_labels[row["COD_MOD"]] = row["LIB_MOD"]
 
 
+def add_missing_instrument_labels(sto_labels):
+    # les classes d'instruments financiers (F1, F2, F51, ... — traitées
+    # comme des postes, voir add_missing_f_instruments) ont leur libellé
+    # sous COD_VAR == "INSTR_ASSET" dans DD_CNA_TEE_metadata.csv, pas
+    # "STO" : complète sto_labels depuis là, sans écraser un libellé déjà
+    # présent (le poste "F" lui-même a déjà le sien sous COD_VAR == "STO").
+    with open(f"{DATA_DIR}/DD_CNA_TEE_metadata.csv", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["COD_VAR"] == "INSTR_ASSET" and row["COD_MOD"] not in sto_labels:
+                sto_labels[row["COD_MOD"]] = row["LIB_MOD"]
+
+
 def load_formulas():
     # id_formule est ré-attribué à partir de 1 indépendamment pour chaque
     # bloc de calcul du script R (cur_group_id() par bloc) : il n'est donc
@@ -355,25 +368,36 @@ B9FX9_FORMULA = [
 # combinaisons secteur×année, écart nul partout où B9F est publié). F n'a
 # pas de variante INSTR_ASSET == "_Z" comme les autres postes : son
 # "total" (toutes classes d'actifs confondues) porte le code INSTR_ASSET
-# == "F" lui-même (voir add_missing_f_totals, qui la charge séparément —
-# load_values() exclut tout INSTR_ASSET != "_Z").
+# == "F" lui-même (voir add_missing_f_instruments, qui la charge
+# séparément — load_values() exclut tout INSTR_ASSET != "_Z").
 B9F_FORMULA = [
     ("Lien solde des flux financiers/flux d'actifs et passifs financiers", ("B", "B9F"),
         [("D", "F", 1), ("C", "F", -1)]),
 ]
 
 
-def add_missing_f_totals(values, src_csv):
-    # F/INSTR_ASSET=="F" (voir B9F_FORMULA) : load_values() ne charge que
-    # INSTR_ASSET == "_Z", donc jamais ces lignes. Chargées ici séparément,
-    # avec les mêmes filtres que load_values() sauf sur INSTR_ASSET ; ne
-    # touche jamais un (secteur, position, poste) déjà présent (par
-    # prudence, bien qu'aucun ne puisse l'être : "F" n'a pas d'autre
-    # variante chargée ailleurs).
+def add_missing_f_instruments(values, src_csv):
+    # F (Flux d'actifs ou passifs) et toutes ses classes d'instruments —
+    # INSTR_ASSET != "_Z" : F1, F2, F21, F22, F29, ..., F5, F51, F511, ...
+    # emboîtées comme les codes STO (voir load_f_instrument_formulas) —
+    # ne sont jamais chargées par load_values() (qui ne garde que
+    # INSTR_ASSET == "_Z"). Chargées ici séparément, mêmes filtres que
+    # load_values() sauf sur INSTR_ASSET ; stockées comme si INSTR_ASSET
+    # était lui-même le poste (STO), sans risque de collision : "F" est le
+    # seul poste STO commençant par "F" dans les données. Restreint à
+    # SECTEURS (comme load_values()), pour ne pas charger des sous-secteurs
+    # financiers exotiques (S12K64...) sans autre carte pour les rejoindre.
+    # Retourne les codes instrument effectivement ajoutés (utilisé comme
+    # poste "F1" etc.), pour que load_f_instrument_formulas sache lesquels
+    # de values[secteur][position] sont des instruments et pas un poste
+    # ordinaire.
+    added_codes = set()
     with open(src_csv, encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f, delimiter=";", quotechar='"')
         for row in reader:
-            if row["STO"] != "F" or row["INSTR_ASSET"] != "F":
+            if row["STO"] != "F" or row["INSTR_ASSET"] == "_Z":
+                continue
+            if row["REF_SECTOR"] not in SECTEURS:
                 continue
             if row["UNIT_MEASURE"] != "XDC":
                 continue
@@ -383,14 +407,68 @@ def add_missing_f_totals(values, src_csv):
                 continue
             if row["TRANSFORMATION"] != "N":
                 continue
-            sec, entry, year = row["REF_SECTOR"], row["ACCOUNTING_ENTRY"], row["TIME_PERIOD"]
+            sec, entry, instr, year = row["REF_SECTOR"], row["ACCOUNTING_ENTRY"], row["INSTR_ASSET"], row["TIME_PERIOD"]
             val = row["OBS_VALUE"]
             if not val:
                 continue
-            bucket = values.setdefault(sec, {}).setdefault(entry, {}).setdefault("F", {})
-            if year in bucket:
-                continue
-            bucket[year] = round(float(val), 1)
+            bucket = values.setdefault(sec, {}).setdefault(entry, {}).setdefault(instr, {})
+            if year not in bucket:
+                bucket[year] = round(float(val), 1)
+            added_codes.add(instr)
+    return added_codes
+
+
+def load_f_instrument_formulas(values, instrument_codes):
+    # décomposition des flux financiers (poste F) par classe d'instrument,
+    # à n'importe quel niveau d'emboîtement de la nomenclature INSTR_ASSET
+    # (ex. F = F1+F2+...+F8, et séparément F5 = F51+F52,
+    # F51 = F511+F512+F519) : même principe que build_ss_ventil (TEE,
+    # nomenclature STO) — le "parent" d'un instrument est son propre code
+    # privé de son dernier caractère (contrairement aux sous-secteurs des
+    # administrations publiques, cette nomenclature ne saute pas de
+    # niveau). Validée par (secteur, position, année) directement sur
+    # `values`, comme B9F_FORMULA/B9FX9_FORMULA (F n'est publié que
+    # 1996-2023, pas 2024, et pas forcément pour toutes les classes toutes
+    # les années).
+    label = "Ventilation en instrument financier"
+    formulas = {}
+    index_extra = {}
+    for sector in SECTEURS:
+        for entry in ("D", "C"):
+            series_by_code = {c: (((values.get(sector) or {}).get(entry) or {}).get(c) or {}) for c in instrument_codes}
+            for parent in instrument_codes:
+                children = [c for c in instrument_codes if c != parent and c[:-1] == parent]
+                if not children:
+                    continue
+                parent_series = series_by_code[parent]
+                valid_years = []
+                for year, parent_val in parent_series.items():
+                    child_vals = []
+                    ok = True
+                    for c in children:
+                        v = series_by_code[c].get(year)
+                        if v is None:
+                            ok = False
+                            break
+                        child_vals.append(v)
+                    if ok and abs(parent_val - sum(child_vals)) < 1:
+                        valid_years.append(year)
+                if not valid_years:
+                    continue
+                fid = f"{label}|{sector}-{entry}-{parent}"
+                member_dicts = [{"sector": sector, "entry": entry, "sto": parent, "signe": 1}]
+                for c in sorted(children):
+                    member_dicts.append({"sector": sector, "entry": entry, "sto": c, "signe": -1})
+                formulas[fid] = {
+                    "label": label,
+                    "target": member_dicts[0],
+                    "members": member_dicts,
+                    "years": sorted(valid_years),
+                }
+                for m in member_dicts:
+                    idxkey = f"{m['sector']}|{m['entry']}|{m['sto']}"
+                    index_extra.setdefault(idxkey, []).append(fid)
+    return formulas, index_extra
 
 
 def load_generic_formulas(values, formula_specs):
@@ -526,13 +604,21 @@ def main():
 
     # B9FX9 = B9F - B9 (voir B9FX9_FORMULA) : même mécanisme, pas de source
     # à compléter (B9F/B9FX9 viennent déjà du TEE, voir needed_keys plus haut).
-    # B9F = F(D) - F(C) (voir B9F_FORMULA) : F/INSTR_ASSET=="F" n'est chargé
-    # par aucun autre mécanisme, add_missing_f_totals le complète depuis le
-    # TEE avant de valider/câbler l'identité.
-    add_missing_f_totals(values, src_data)
+    # B9F = F(D) - F(C) (voir B9F_FORMULA) et la décomposition de F par
+    # instrument (voir load_f_instrument_formulas) : F et ses classes
+    # d'instruments ne sont chargés par aucun autre mécanisme,
+    # add_missing_f_instruments les complète depuis le TEE avant de
+    # valider/câbler ces identités.
+    instrument_codes = add_missing_f_instruments(values, src_data)
+    add_missing_instrument_labels(labels["STO"])
     tee_generic_formulas, tee_generic_index = load_generic_formulas(values, B9FX9_FORMULA + B9F_FORMULA)
     formulas.update(tee_generic_formulas)
     for idxkey, ids in tee_generic_index.items():
+        index.setdefault(idxkey, []).extend(ids)
+
+    f_instrument_formulas, f_instrument_index = load_f_instrument_formulas(values, instrument_codes)
+    formulas.update(f_instrument_formulas)
+    for idxkey, ids in f_instrument_index.items():
         index.setdefault(idxkey, []).extend(ids)
 
     # source des données affichée en petit sur chaque carte (site/app.js,
