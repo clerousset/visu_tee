@@ -151,10 +151,24 @@ certains postes détaillés peuvent être indisponibles.
   `F5 = F51+F52`, puis `F51 = F511+F512+F519` — via un bouton « Ventilation
   en instrument financier », même principe que « Ventilation en
   sous-secteur »/« en sous-catégorie » (y compris la règle de ne se proposer
-  que depuis la carte cible). Voir `load_f_instrument_formulas` : les codes
+  que depuis la carte cible). Voir `load_nested_code_formulas` : les codes
   `INSTR_ASSET` (F1, F51, ...) sont traités comme des postes à part entière
   (aucun autre poste STO ne commence par « F »), validée par
   secteur/position/année comme B9F/B9FX9 ci-dessus.
+- La dépense de consommation des ménages (`P31`) se déplie de la même façon
+  par fonction de consommation (nomenclature COICOP — alimentation,
+  logement, santé, ...), depuis un fichier séparé,
+  `data/DD_CNA_CONSO_MENAGES_COICOP_data.csv` : `P31 = CP01+...+CP15` (ou
+  `+CP16` selon le secteur — `CP16`, « Solde territorial », n'est un vrai
+  composant du total que pour l'économie totale S1, pas pour les ménages
+  S14 seuls, voir `P31_COICOP_TOP_FORMULA`), puis chaque division se déplie
+  à son tour (`CP01 = CP011+CP012+CP013`, etc.) via
+  `load_nested_code_formulas`. Ce fichier n'a de ventilation qu'à
+  `COUNTERPART_AREA == "W2"`, alors que le TEE (source de la carte `P31`
+  elle-même) correspond à `COUNTERPART_AREA == "W0"` : les deux concordent
+  pour S1, mais pas pour S14 — le bouton racine `P31 = CP01+...` n'apparaît
+  donc que sur la carte S1 (chaque division continue de se déplier
+  normalement pour tous les secteurs, S14 y compris, une fois qu'on y est).
 - Une identité qui n'est vérifiée que pour certaines années (les identités
   ci-dessus qui ne sont pas vraies par construction) reste proposée en
   dehors de ces années plutôt que masquée,
@@ -236,4 +250,8 @@ Chart minimal (`helm/visu-tee/`) : Deployment + Service + Ingress optionnel
 
 INSEE, comptes nationaux annuels (base 2020), table SDMX `DD_CNA_TEE`.
 Valeurs en euros courants, France, non consolidé, zone de contrepartie
-« Monde » (W0), hors ventilation par instrument financier.
+« Monde » (W0), hors ventilation par instrument financier (même
+convention, mais `INSTR_ASSET` variable au lieu de `"_Z"`). La
+ventilation de `P31` par fonction de consommation (COICOP) vient d'une
+table séparée, `DD_CNA_CONSO_MENAGES_COICOP`, à `COUNTERPART_AREA == "W2"`
+(voir « Comment ça marche » ci-dessus).

@@ -81,6 +81,18 @@ def add_missing_instrument_labels(sto_labels):
                 sto_labels[row["COD_MOD"]] = row["LIB_MOD"]
 
 
+def add_missing_coicop_labels(sto_labels):
+    # les fonctions de consommation COICOP (CP01, CP011, ... — traitées
+    # comme des postes, voir add_missing_coicop_values) ont leur libellé
+    # sous COD_VAR == "EXPENDITURE" dans
+    # DD_CNA_CONSO_MENAGES_COICOP_metadata.csv.
+    with open(f"{DATA_DIR}/DD_CNA_CONSO_MENAGES_COICOP_metadata.csv", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["COD_VAR"] == "EXPENDITURE" and row["COD_MOD"] not in sto_labels:
+                sto_labels[row["COD_MOD"]] = row["LIB_MOD"]
+
+
 def load_formulas():
     # id_formule est ré-attribué à partir de 1 indépendamment pour chaque
     # bloc de calcul du script R (cur_group_id() par bloc) : il n'est donc
@@ -306,6 +318,22 @@ def load_activite_formulas(tee_values):
     return formulas, activity_values
 
 
+def _max_loaded_year(values):
+    # borne commune à tous les add_missing_*(values) qui complètent `values`
+    # depuis une source secondaire (SUT, APU implicite via le TEE, F,
+    # COICOP...) : ne jamais étendre l'axe des années au-delà de ce que
+    # couvre déjà le TEE. YEARS (site/app.js) prend le max sur toutes les
+    # séries chargées pour choisir l'année par défaut ; une source
+    # secondaire a régulièrement une année de plus que le TEE (ex. TSBP,
+    # COICOP en 2025) sans aucune contrepartie — l'ajouter décalerait
+    # l'année par défaut du site vers une année où la graine (D1/S1) n'a
+    # pas de valeur, même si l'identité qui l'utilise ne concorde jamais.
+    return max(
+        (int(y) for sec_d in values.values() for sto_d in sec_d.values() for years in sto_d.values() for y in years),
+        default=None,
+    )
+
+
 def add_missing_sut_values(values):
     # certains postes de LIEN_SUT_FORMULAS (ex. TSPP, TSBP) n'existent pas
     # dans le TEE (DD_CNA_TEE_data.csv), seulement dans le SUT — on les
@@ -319,15 +347,8 @@ def add_missing_sut_values(values):
     added = set()
     have = {(entry, sto) for sec_d in values.values() for entry, sto_d in sec_d.items() for sto in sto_d}
     # ne pas non plus étendre l'axe des années au-delà de ce que couvre déjà
-    # le TEE : YEARS (site/app.js) prend le max sur toutes les séries
-    # chargées pour choisir l'année par défaut, et TSBP par exemple a une
-    # année 2025 en SUT sans aucune contrepartie TEE — l'ajouter décalerait
-    # l'année par défaut du site vers une année où la graine (D1/S1) n'a pas
-    # de valeur, même si l'identité qui l'utilise ne concorde jamais.
-    max_year = max(
-        (int(y) for sec_d in values.values() for sto_d in sec_d.values() for years in sto_d.values() for y in years),
-        default=None,
-    )
+    # le TEE (voir _max_loaded_year)
+    max_year = _max_loaded_year(values)
     needed = set()
     for label, target, members in LIEN_SUT_FORMULAS:
         needed.add(target)
@@ -379,7 +400,7 @@ B9F_FORMULA = [
 def add_missing_f_instruments(values, src_csv):
     # F (Flux d'actifs ou passifs) et toutes ses classes d'instruments —
     # INSTR_ASSET != "_Z" : F1, F2, F21, F22, F29, ..., F5, F51, F511, ...
-    # emboîtées comme les codes STO (voir load_f_instrument_formulas) —
+    # emboîtées comme les codes STO (voir load_nested_code_formulas) —
     # ne sont jamais chargées par load_values() (qui ne garde que
     # INSTR_ASSET == "_Z"). Chargées ici séparément, mêmes filtres que
     # load_values() sauf sur INSTR_ASSET ; stockées comme si INSTR_ASSET
@@ -387,11 +408,14 @@ def add_missing_f_instruments(values, src_csv):
     # seul poste STO commençant par "F" dans les données. Restreint à
     # SECTEURS (comme load_values()), pour ne pas charger des sous-secteurs
     # financiers exotiques (S12K64...) sans autre carte pour les rejoindre.
-    # Retourne les codes instrument effectivement ajoutés (utilisé comme
-    # poste "F1" etc.), pour que load_f_instrument_formulas sache lesquels
-    # de values[secteur][position] sont des instruments et pas un poste
+    # Retourne les (secteur, position, code instrument) effectivement
+    # ajoutés : le triplet complet pour marquer la source affichée sur la
+    # carte (voir main()), le code seul (via un set(codes)) suffit à
+    # load_nested_code_formulas pour savoir lesquels de
+    # values[secteur][position] sont des instruments et pas un poste
     # ordinaire.
     added_codes = set()
+    max_year = _max_loaded_year(values)
     with open(src_csv, encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f, delimiter=";", quotechar='"')
         for row in reader:
@@ -408,36 +432,105 @@ def add_missing_f_instruments(values, src_csv):
             if row["TRANSFORMATION"] != "N":
                 continue
             sec, entry, instr, year = row["REF_SECTOR"], row["ACCOUNTING_ENTRY"], row["INSTR_ASSET"], row["TIME_PERIOD"]
+            if max_year is not None and int(year) > max_year:
+                continue
             val = row["OBS_VALUE"]
             if not val:
                 continue
             bucket = values.setdefault(sec, {}).setdefault(entry, {}).setdefault(instr, {})
             if year not in bucket:
                 bucket[year] = round(float(val), 1)
-            added_codes.add(instr)
+            added_codes.add((sec, entry, instr))
     return added_codes
 
 
-def load_f_instrument_formulas(values, instrument_codes):
-    # décomposition des flux financiers (poste F) par classe d'instrument,
-    # à n'importe quel niveau d'emboîtement de la nomenclature INSTR_ASSET
-    # (ex. F = F1+F2+...+F8, et séparément F5 = F51+F52,
-    # F51 = F511+F512+F519) : même principe que build_ss_ventil (TEE,
-    # nomenclature STO) — le "parent" d'un instrument est son propre code
-    # privé de son dernier caractère (contrairement aux sous-secteurs des
-    # administrations publiques, cette nomenclature ne saute pas de
-    # niveau). Validée par (secteur, position, année) directement sur
-    # `values`, comme B9F_FORMULA/B9FX9_FORMULA (F n'est publié que
-    # 1996-2023, pas 2024, et pas forcément pour toutes les classes toutes
-    # les années).
-    label = "Ventilation en instrument financier"
+DATA_CONSO_COICOP = f"{DATA_DIR}/DD_CNA_CONSO_MENAGES_COICOP_data.csv"
+
+
+def add_missing_coicop_values(values, src_csv=None):
+    # dépense de consommation des ménages (poste P31) par fonction
+    # (nomenclature COICOP, EXPENDITURE != "_Z" : CP01, CP011, CP0111, ...
+    # emboîtés comme les codes STO, voir load_nested_code_formulas et
+    # P31_COICOP_TOP_FORMULA). Fichier séparé du TEE
+    # (DD_CNA_CONSO_MENAGES_COICOP_data.csv) : COUNTERPART_AREA == "W2" et
+    # PRODUCT == "_T" sont nécessaires ici (plusieurs lignes concurrentes
+    # sinon, dont des lignes de correction spécifiques comme
+    # CP_CANTINE_REVENU) — TEE/SUT/APU utilisaient COUNTERPART_AREA == "W0",
+    # mais ce fichier n'a pas de ventilation COICOP à W0. Stockées comme si
+    # EXPENDITURE était lui-même le poste (STO), sans risque de collision
+    # (aucun poste STO ne commence par "CP"). Restreint à SECTEURS.
+    added_codes = set()
+    src_csv = src_csv or DATA_CONSO_COICOP
+    max_year = _max_loaded_year(values)
+    with open(src_csv, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["STO"] != "P31" or row["EXPENDITURE"] == "_Z":
+                continue
+            if row["REF_SECTOR"] not in SECTEURS:
+                continue
+            if row["UNIT_MEASURE"] != "XDC":
+                continue
+            if row["PRICES"] != "V":
+                continue
+            if row["COUNTERPART_AREA"] != "W2":
+                continue
+            if row["PRODUCT"] != "_T":
+                continue
+            sec, entry, code, year = row["REF_SECTOR"], row["ACCOUNTING_ENTRY"], row["EXPENDITURE"], row["TIME_PERIOD"]
+            if max_year is not None and int(year) > max_year:
+                continue
+            val = row["OBS_VALUE"]
+            if not val:
+                continue
+            bucket = values.setdefault(sec, {}).setdefault(entry, {}).setdefault(code, {})
+            if year not in bucket:
+                bucket[year] = round(float(val), 1)
+            added_codes.add((sec, entry, code))
+    return added_codes
+
+
+# P31 = CP01 + ... + CP15/CP16 : la liste des divisions COICOP de premier
+# niveau ("CPnn") ne se déduit pas de "P31" par troncature (contrairement
+# aux niveaux plus fins, voir load_nested_code_formulas) — deux variantes
+# candidates, car CP16 se comporte différemment selon le secteur : pour S1
+# (économie totale) c'est une vraie 16e division, incluse dans le total ;
+# pour S14 (ménages) le même code porte une valeur négative qui n'est PAS
+# un composant du total (probablement une correction spécifique aux
+# ménages) — l'inclure y fait diverger la somme de plusieurs milliers
+# d'euros. Chaque variante n'est retenue, comme d'habitude, que si elle
+# concorde numériquement (voir load_generic_formulas) : dans les faits,
+# seule une des deux valide pour un secteur donné.
+_CP_TOP_CODES_15 = [f"CP{n:02d}" for n in range(1, 16)]
+_CP_TOP_CODES_16 = [f"CP{n:02d}" for n in range(1, 17)]
+P31_COICOP_TOP_FORMULA = [
+    ("Ventilation par fonction de consommation (COICOP)", ("D", "P31"),
+        [("D", c, 1) for c in _CP_TOP_CODES_15]),
+    ("Ventilation par fonction de consommation (COICOP)", ("D", "P31"),
+        [("D", c, 1) for c in _CP_TOP_CODES_16]),
+]
+
+
+def load_nested_code_formulas(values, codes, label, entries=("D", "C")):
+    # décomposition d'un poste par une nomenclature dont les codes
+    # s'emboîtent par simple troncature du dernier caractère (contrairement
+    # à celle des sous-secteurs des administrations publiques, qui saute
+    # des niveaux — voir find_sector_parent dans regenerate_formules.py) :
+    # même principe que build_ss_ventil (TEE, nomenclature STO), pour une
+    # nomenclature qui n'est PAS elle-même le poste STO (ex. INSTR_ASSET
+    # pour le poste F — voir add_missing_f_instruments — ou EXPENDITURE
+    # pour le poste P31 — voir add_missing_coicop_values), dont les codes
+    # sont donc traités comme des postes à part entière. Validée par
+    # (secteur, position, année) directement sur `values`, comme
+    # B9F_FORMULA/B9FX9_FORMULA (les postes très détaillés ne sont pas
+    # toujours publiés pour toutes les années/tous les secteurs).
     formulas = {}
     index_extra = {}
     for sector in SECTEURS:
-        for entry in ("D", "C"):
-            series_by_code = {c: (((values.get(sector) or {}).get(entry) or {}).get(c) or {}) for c in instrument_codes}
-            for parent in instrument_codes:
-                children = [c for c in instrument_codes if c != parent and c[:-1] == parent]
+        for entry in entries:
+            series_by_code = {c: (((values.get(sector) or {}).get(entry) or {}).get(c) or {}) for c in codes}
+            for parent in codes:
+                children = [c for c in codes if c != parent and c[:-1] == parent]
                 if not children:
                     continue
                 parent_series = series_by_code[parent]
@@ -605,28 +698,45 @@ def main():
     # B9FX9 = B9F - B9 (voir B9FX9_FORMULA) : même mécanisme, pas de source
     # à compléter (B9F/B9FX9 viennent déjà du TEE, voir needed_keys plus haut).
     # B9F = F(D) - F(C) (voir B9F_FORMULA) et la décomposition de F par
-    # instrument (voir load_f_instrument_formulas) : F et ses classes
+    # instrument (voir load_nested_code_formulas) : F et ses classes
     # d'instruments ne sont chargés par aucun autre mécanisme,
     # add_missing_f_instruments les complète depuis le TEE avant de
-    # valider/câbler ces identités.
-    instrument_codes = add_missing_f_instruments(values, src_data)
+    # valider/câbler ces identités. P31 (dépense de consommation des
+    # ménages) est déjà chargé depuis le TEE ; sa décomposition par
+    # fonction (COICOP, P31_COICOP_TOP_FORMULA) vient d'un fichier séparé
+    # (add_missing_coicop_values).
+    instrument_added = add_missing_f_instruments(values, src_data)
     add_missing_instrument_labels(labels["STO"])
-    tee_generic_formulas, tee_generic_index = load_generic_formulas(values, B9FX9_FORMULA + B9F_FORMULA)
+    coicop_added = add_missing_coicop_values(values)
+    add_missing_coicop_labels(labels["STO"])
+    tee_generic_formulas, tee_generic_index = load_generic_formulas(
+        values, B9FX9_FORMULA + B9F_FORMULA + P31_COICOP_TOP_FORMULA)
     formulas.update(tee_generic_formulas)
     for idxkey, ids in tee_generic_index.items():
         index.setdefault(idxkey, []).extend(ids)
 
-    f_instrument_formulas, f_instrument_index = load_f_instrument_formulas(values, instrument_codes)
+    f_instrument_formulas, f_instrument_index = load_nested_code_formulas(
+        values, {c for _, _, c in instrument_added}, "Ventilation en instrument financier")
     formulas.update(f_instrument_formulas)
     for idxkey, ids in f_instrument_index.items():
         index.setdefault(idxkey, []).extend(ids)
 
+    coicop_formulas, coicop_index = load_nested_code_formulas(
+        values, {c for _, _, c in coicop_added}, "Ventilation par fonction de consommation (COICOP)", entries=("D",))
+    formulas.update(coicop_formulas)
+    for idxkey, ids in coicop_index.items():
+        index.setdefault(idxkey, []).extend(ids)
+
     # source des données affichée en petit sur chaque carte (site/app.js,
     # graph.js::sourceFor) : "DD_CNA_TEE" par défaut (non stockée), sauf
-    # exception explicite ici — pour l'instant seulement les quelques
-    # postes complétés depuis le SUT (sut_added). D'autres sources futures
-    # s'ajouteront de la même façon.
+    # exception explicite ici. instrument_added (classes d'instruments
+    # financiers) n'a pas d'entrée : ce sont toujours des lignes de
+    # DD_CNA_TEE_data.csv (juste une autre valeur d'INSTR_ASSET), donc la
+    # source par défaut reste correcte. coicop_added vient en revanche d'un
+    # fichier entièrement différent. D'autres sources futures s'ajouteront
+    # de la même façon.
     poste_source = {f"{sec}|{entry}|{sto}": "DD_CNA_SUT" for sec, entry, sto in sut_added}
+    poste_source.update({f"{sec}|{entry}|{sto}": "DD_CNA_CONSO_MENAGES_COICOP" for sec, entry, sto in coicop_added})
 
     # secteurs réellement utilisés : au-delà des 6 de SECTEURS, la
     # décomposition en sous-secteur des administrations publiques (voir
