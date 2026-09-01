@@ -349,6 +349,49 @@ B9FX9_FORMULA = [
         [("B", "B9F", 1), ("B", "B9", -1)]),
 ]
 
+# B9F = F(emploi) - F(ressource) : le solde des flux financiers (B9F) tel
+# que reconstitué à partir des flux d'actifs et passifs financiers eux-mêmes
+# (STO "F", "Flux d'actifs ou passifs") — vérifié à 100% (168/168
+# combinaisons secteur×année, écart nul partout où B9F est publié). F n'a
+# pas de variante INSTR_ASSET == "_Z" comme les autres postes : son
+# "total" (toutes classes d'actifs confondues) porte le code INSTR_ASSET
+# == "F" lui-même (voir add_missing_f_totals, qui la charge séparément —
+# load_values() exclut tout INSTR_ASSET != "_Z").
+B9F_FORMULA = [
+    ("Lien solde des flux financiers/flux d'actifs et passifs financiers", ("B", "B9F"),
+        [("D", "F", 1), ("C", "F", -1)]),
+]
+
+
+def add_missing_f_totals(values, src_csv):
+    # F/INSTR_ASSET=="F" (voir B9F_FORMULA) : load_values() ne charge que
+    # INSTR_ASSET == "_Z", donc jamais ces lignes. Chargées ici séparément,
+    # avec les mêmes filtres que load_values() sauf sur INSTR_ASSET ; ne
+    # touche jamais un (secteur, position, poste) déjà présent (par
+    # prudence, bien qu'aucun ne puisse l'être : "F" n'a pas d'autre
+    # variante chargée ailleurs).
+    with open(src_csv, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["STO"] != "F" or row["INSTR_ASSET"] != "F":
+                continue
+            if row["UNIT_MEASURE"] != "XDC":
+                continue
+            if row["COUNTERPART_AREA"] != "W0":
+                continue
+            if row["CONSOLIDATION"] != "N":
+                continue
+            if row["TRANSFORMATION"] != "N":
+                continue
+            sec, entry, year = row["REF_SECTOR"], row["ACCOUNTING_ENTRY"], row["TIME_PERIOD"]
+            val = row["OBS_VALUE"]
+            if not val:
+                continue
+            bucket = values.setdefault(sec, {}).setdefault(entry, {}).setdefault("F", {})
+            if year in bucket:
+                continue
+            bucket[year] = round(float(val), 1)
+
 
 def load_generic_formulas(values, formula_specs):
     # identités "à plat" (pas de dimension activité, un seul membre cible)
@@ -483,9 +526,13 @@ def main():
 
     # B9FX9 = B9F - B9 (voir B9FX9_FORMULA) : même mécanisme, pas de source
     # à compléter (B9F/B9FX9 viennent déjà du TEE, voir needed_keys plus haut).
-    b9fx9_formulas, b9fx9_index = load_generic_formulas(values, B9FX9_FORMULA)
-    formulas.update(b9fx9_formulas)
-    for idxkey, ids in b9fx9_index.items():
+    # B9F = F(D) - F(C) (voir B9F_FORMULA) : F/INSTR_ASSET=="F" n'est chargé
+    # par aucun autre mécanisme, add_missing_f_totals le complète depuis le
+    # TEE avant de valider/câbler l'identité.
+    add_missing_f_totals(values, src_data)
+    tee_generic_formulas, tee_generic_index = load_generic_formulas(values, B9FX9_FORMULA + B9F_FORMULA)
+    formulas.update(tee_generic_formulas)
+    for idxkey, ids in tee_generic_index.items():
         index.setdefault(idxkey, []).extend(ids)
 
     # source des données affichée en petit sur chaque carte (site/app.js,

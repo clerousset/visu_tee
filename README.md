@@ -138,8 +138,16 @@ certains postes détaillés peuvent être indisponibles.
   (2021 pour la plupart des secteurs), pas au-delà (données encore
   provisoires) : c'est un écart de mesure réellement sujet à révision, pas
   une identité comptable vraie par construction comme les autres.
-- Une identité qui n'est vérifiée que pour certaines années (les trois
-  ci-dessus) reste proposée en dehors de ces années plutôt que masquée,
+- Et une identité vraie par construction (`B9F_FORMULA`) : `B9F` lui-même se
+  reconstitue comme la différence entre les flux d'actifs et de passifs
+  financiers (poste `F`, décomposé en emploi/ressource) — vérifiée à 100%
+  partout où `B9F` est publié (1996-2023 ; `F` n'a pas de variante « total »
+  standard `INSTR_ASSET == "_Z"` comme les autres postes, son total porte le
+  code `INSTR_ASSET == "F"` lui-même, chargé séparément par
+  `add_missing_f_totals`).
+- Une identité qui n'est vérifiée que pour certaines années (les identités
+  ci-dessus qui ne sont pas vraies par construction) reste proposée en
+  dehors de ces années plutôt que masquée,
   mais avec un avertissement « ⚠ » sur le bouton et au-dessus de l'équation
   dépliée (« Formule non vérifiée dans les données pour cette année ») :
   mieux vaut la montrer avec ce garde-fou que la faire disparaître sans
