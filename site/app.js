@@ -528,7 +528,7 @@
   // en a (sinon DEFAULT_YEAR — le choix de l'année n'affecte que la
   // structure retournée, pas les codes/signes affichés ici).
   function formulaInstanceEquation(inst) {
-    const year = inst.years ? +inst.years[inst.years.length - 1] : DEFAULT_YEAR;
+    const year = inst.years && inst.years.length ? +inst.years[inst.years.length - 1] : DEFAULT_YEAR;
     const exp = G.expandFormula(inst.id, inst.sector, inst.entry, inst.sto, year, inst.activity);
     if (!exp) return null;
     const parts = [stoWithEntry(inst.sto, inst.entry) + (inst.activity ? ' [' + inst.activity + ']' : ''), '='];
@@ -565,7 +565,9 @@
                 h('code', { className: 'formula-instance-eq', key: 'eq' }, formulaInstanceEquation(inst) || '—'),
               ]),
               inst.years ? h('span', { className: 'formula-instance-years', key: 'years' },
-                'vérifiée ' + inst.years[0] + '–' + inst.years[inst.years.length - 1]) : null,
+                inst.years.length
+                  ? 'vérifiée ' + inst.years[0] + '–' + inst.years[inst.years.length - 1]
+                  : '⚠ jamais vérifiée numériquement') : null,
               h('button', {
                 className: 'formula-instance-goto', key: 'go',
                 onClick: () => onGoTo({ sector: inst.sector, entry: inst.entry, sto: inst.sto, activity: inst.activity || undefined }),

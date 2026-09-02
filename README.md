@@ -194,6 +194,21 @@ certains postes détaillés peuvent être indisponibles.
   membre (`yearOffset`) dans `graph.js::expandFormula`/`sameMember`. `LE_N`
   se déplie aussi par classe d'instrument/actif, comme le poste `F` du TEE
   (bouton « Ventilation en instrument financier (patrimoine) »).
+- Le poste `F` (et ses classes d'instrument, `F1`, `F2`, ...) existe donc
+  dans deux tables : le TEE et le bilan patrimonial (préfixé `PAT_F_`, voir
+  ci-dessus). Un bouton « Cohérence compte de patrimoine/TEE » relie les
+  deux pour chaque instrument/secteur/position où les deux séries ont au
+  moins une année en commun — voir
+  `scripts/prepare_data.py::load_patrimoine_f_coherence_formulas`.
+  Contrairement aux autres identités du site, la concordance numérique
+  (`< 1`) n'est pas une condition pour proposer le bouton : elle ne sert
+  qu'à déterminer les années « vérifiées » (badge ⚠ sinon, comme toute
+  identité partiellement vérifiée — voir plus bas), l'identité restant
+  affichée même sur des années, voire des instruments entiers, où les deux
+  sources divergent nettement (ex. `F` lui-même, l'agrégat « toutes classes
+  confondues », ne concorde qu'une partie du temps) — c'est volontaire,
+  pour permettre d'explorer et de comparer les deux sources plutôt que de
+  cacher leurs écarts.
 - Une identité qui n'est vérifiée que pour certaines années (les identités
   ci-dessus qui ne sont pas vraies par construction) reste proposée en
   dehors de ces années plutôt que masquée,

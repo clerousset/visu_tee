@@ -849,6 +849,56 @@ def load_patrimoine_reconciliation_formulas(values, codes):
     return formulas, index_extra
 
 
+def load_patrimoine_f_coherence_formulas(values):
+    # PAT_F_<instr> (bilan patrimonial, DD_CNA_PATRIMOINE) et <instr> (le
+    # même instrument financier côté TEE, chargé par add_missing_f_instruments)
+    # mesurent en principe la même grandeur (flux de l'instrument <instr> sur
+    # l'année), mais dans deux tables distinctes. Contrairement aux autres
+    # identités de ce fichier, la concordance numérique (< 1) n'est PAS une
+    # condition pour créer l'identité (demandé ainsi : "si elles ne sont pas
+    # vérifiées, ce n'est pas grave, ça permet l'exploration des données") —
+    # elle ne sert qu'à peupler `years`, réutilisé tel quel par
+    # isFormulaVerified (graph.js) pour afficher le badge ⚠ habituel sur les
+    # années où les deux sources divergent, plutôt que de les cacher ou de
+    # les faire passer à tort pour vérifiées. L'identité est créée dès que
+    # les deux séries ont au moins une année commune (même si aucune ne
+    # concorde).
+    label = "Cohérence compte de patrimoine/TEE"
+    formulas = {}
+    index_extra = {}
+    pat_f_prefix = "PAT_F_"
+    for sector in SECTEURS:
+        by_entry = values.get(sector) or {}
+        for entry in ("D", "C"):
+            by_sto = by_entry.get(entry) or {}
+            pat_codes = sorted(c for c in by_sto if c.startswith(pat_f_prefix))
+            for pat_code in pat_codes:
+                instr = pat_code[len(pat_f_prefix):]
+                instr_series = by_sto.get(instr)
+                if not instr_series:
+                    continue
+                pat_series = by_sto[pat_code]
+                common_years = sorted(y for y in instr_series if y in pat_series)
+                if not common_years:
+                    continue
+                valid_years = [y for y in common_years if abs(instr_series[y] - pat_series[y]) < 1]
+                fid = f"{label}|{sector}-{entry}-{instr}"
+                member_dicts = [
+                    {"sector": sector, "entry": entry, "sto": instr, "signe": 1},
+                    {"sector": sector, "entry": entry, "sto": pat_code, "signe": -1},
+                ]
+                formulas[fid] = {
+                    "label": label,
+                    "target": member_dicts[0],
+                    "members": member_dicts,
+                    "years": valid_years,
+                }
+                for m in member_dicts:
+                    idxkey = f"{m['sector']}|{m['entry']}|{m['sto']}"
+                    index_extra.setdefault(idxkey, []).append(fid)
+    return formulas, index_extra
+
+
 def main():
     src_data = sys.argv[1] if len(sys.argv) > 1 else f"{DATA_DIR}/DD_CNA_TEE_data.csv"
     labels = load_metadata()
@@ -987,6 +1037,11 @@ def main():
         values, patrimoine_codes)
     formulas.update(patrimoine_reco_formulas)
     for idxkey, ids in patrimoine_reco_index.items():
+        index.setdefault(idxkey, []).extend(ids)
+
+    patrimoine_f_coherence_formulas, patrimoine_f_coherence_index = load_patrimoine_f_coherence_formulas(values)
+    formulas.update(patrimoine_f_coherence_formulas)
+    for idxkey, ids in patrimoine_f_coherence_index.items():
         index.setdefault(idxkey, []).extend(ids)
 
     # source des données affichée en petit sur chaque carte (site/app.js,
