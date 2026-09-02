@@ -51,8 +51,9 @@ vérifier la connexion et recharger la page.
 - Un onglet « Formules » (à côté d'« Explorer ») liste tous les types
   d'identités comptables connus du site (`app.js::FORMULA_GROUPS`,
   regroupées par libellé, ventilations d'abord), chacun repliable ; chaque
-  instance propose un bouton « Aller à cette carte » qui re-part dessus et
-  revient sur l'onglet « Explorer ».
+  instance affiche l'équation avec ses signes +/− (comme sur une carte
+  dépliée, `app.js::formulaInstanceEquation`) et propose un bouton « Aller
+  à cette carte » qui re-part dessus et revient sur l'onglet « Explorer ».
 - Chaque carte affiche en petit sa source (« Source : DD_CNA_TEE » ou
   « DD_CNA_SUT ») : la plupart des postes viennent du TEE, sauf les
   quelques-uns qui n'existent que dans le SUT (`TSPP`, `TSBP`) et toute

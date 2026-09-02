@@ -521,6 +521,27 @@
   // tous les types d'identités (FORMULA_GROUPS), chacun repliable, avec un
   // bouton par instance pour repartir dessus dans l'onglet "Explorer"
   // (comme "repartir d'ici" sur une carte).
+  // équation en toutes lettres abrégées (codes + signes, pas les valeurs :
+  // c'est un catalogue structurel, pas une carte à une année précise) pour
+  // une instance de formule ; réutilise G.expandFormula comme les cartes,
+  // sur une année quelconque parmi celles où l'instance est vérifiée s'il y
+  // en a (sinon DEFAULT_YEAR — le choix de l'année n'affecte que la
+  // structure retournée, pas les codes/signes affichés ici).
+  function formulaInstanceEquation(inst) {
+    const year = inst.years ? +inst.years[inst.years.length - 1] : DEFAULT_YEAR;
+    const exp = G.expandFormula(inst.id, inst.sector, inst.entry, inst.sto, year, inst.activity);
+    if (!exp) return null;
+    const parts = [stoWithEntry(inst.sto, inst.entry) + (inst.activity ? ' [' + inst.activity + ']' : ''), '='];
+    exp.others.forEach(m => {
+      const sign = m.effectiveSign > 0 ? '+' : '−';
+      const sectorTag = m.sector !== inst.sector ? ' (' + m.sector + ')' : '';
+      const activityTag = m.activity ? ' [' + m.activity + ']' : '';
+      const yearTag = m.yearOffset ? ' (' + (year + m.yearOffset) + ')' : '';
+      parts.push(sign + ' ' + stoWithEntry(m.sto, m.entry) + sectorTag + activityTag + yearTag);
+    });
+    return parts.join(' ');
+  }
+
   function FormulasCatalog({ onGoTo }) {
     const [expanded, setExpanded] = React.useState({});
     const totalInstances = FORMULA_GROUPS.reduce((acc, g) => acc + g.instances.length, 0);
@@ -539,10 +560,12 @@
           }, (isOpen ? '▾ ' : '▸ ') + g.label + ' (' + g.instances.length + ')'),
           isOpen ? h('ul', { className: 'formula-instance-list', key: 'list' },
             g.instances.map(inst => h('li', { className: 'formula-instance-item', key: inst.id }, [
-              h('span', { className: 'formula-instance-desc', key: 'desc' },
-                inst.sto + (inst.activity ? ' [' + inst.activity + ']' : '') + ' — ' + G.sectorLabel(inst.sector) +
-                ' (' + lowerFirst(G.entryLabel(inst.entry)) + ', ' + inst.size + ' membres' +
-                (inst.years ? ', ' + inst.years[0] + '–' + inst.years[inst.years.length - 1] : '') + ')'),
+              h('div', { className: 'formula-instance-main', key: 'main' }, [
+                h('span', { className: 'formula-instance-sector', key: 'sector' }, G.sectorLabel(inst.sector)),
+                h('code', { className: 'formula-instance-eq', key: 'eq' }, formulaInstanceEquation(inst) || '—'),
+              ]),
+              inst.years ? h('span', { className: 'formula-instance-years', key: 'years' },
+                'vérifiée ' + inst.years[0] + '–' + inst.years[inst.years.length - 1]) : null,
               h('button', {
                 className: 'formula-instance-goto', key: 'go',
                 onClick: () => onGoTo({ sector: inst.sector, entry: inst.entry, sto: inst.sto, activity: inst.activity || undefined }),
