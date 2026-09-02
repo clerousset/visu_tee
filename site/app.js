@@ -100,6 +100,34 @@
     return options;
   })();
 
+  // catalogue des identités connues, groupées par libellé (onglet
+  // "Formules") : calculé une seule fois, comme ALL_POSTE_OPTIONS. La cible
+  // d'une formule sert de point d'entrée pour "aller à cette carte" ; les
+  // ventilations passent avant les liens (même ordre que getFormulasFor).
+  const FORMULA_GROUPS = (() => {
+    const byLabel = {};
+    Object.keys(D.formulas).forEach(fid => {
+      const f = D.formulas[fid];
+      const target = f.target || f.members[0];
+      (byLabel[f.label] = byLabel[f.label] || []).push({
+        id: fid,
+        sector: target.sector,
+        entry: target.entry,
+        sto: target.sto,
+        activity: target.activity || null,
+        size: f.members.length,
+        years: f.years || null,
+      });
+    });
+    return Object.keys(byLabel)
+      .map(label => ({
+        label,
+        instances: byLabel[label].sort((a, b) => (a.sector + '|' + a.sto).localeCompare(b.sector + '|' + b.sto)),
+      }))
+      .sort((a, b) => (a.label.indexOf('Ventilation') === 0 ? 0 : 1) - (b.label.indexOf('Ventilation') === 0 ? 0 : 1)
+        || a.label.localeCompare(b.label));
+  })();
+
   // recherche insensible à la casse/aux accents (ex. "impots" doit trouver
   // "impôts") sur le code, le libellé du poste, le secteur et la position
   function normalize(str) {
@@ -488,8 +516,51 @@
     ]);
   }
 
+  // ---------- Catalogue des identités connues (onglet "Formules") ----------
+  // Remplace la zone cartes+panneau (pas un ajout dessus) : une liste de
+  // tous les types d'identités (FORMULA_GROUPS), chacun repliable, avec un
+  // bouton par instance pour repartir dessus dans l'onglet "Explorer"
+  // (comme "repartir d'ici" sur une carte).
+  function FormulasCatalog({ onGoTo }) {
+    const [expanded, setExpanded] = React.useState({});
+    const totalInstances = FORMULA_GROUPS.reduce((acc, g) => acc + g.instances.length, 0);
+    return h('div', { className: 'formulas-catalog' }, [
+      h('p', { className: 'formulas-catalog-intro', key: 'intro' },
+        FORMULA_GROUPS.length + ' type' + (FORMULA_GROUPS.length > 1 ? 's' : '') + ' d’identité' +
+        (FORMULA_GROUPS.length > 1 ? 's' : '') + ' comptable' + (FORMULA_GROUPS.length > 1 ? 's' : '') +
+        ', ' + totalInstances + ' au total.'),
+      ...FORMULA_GROUPS.map(g => {
+        const isOpen = !!expanded[g.label];
+        return h('div', { className: 'formula-group-card', key: g.label }, [
+          h('button', {
+            className: 'formula-group-header',
+            key: 'header',
+            onClick: () => setExpanded(prev => Object.assign({}, prev, { [g.label]: !prev[g.label] })),
+          }, (isOpen ? '▾ ' : '▸ ') + g.label + ' (' + g.instances.length + ')'),
+          isOpen ? h('ul', { className: 'formula-instance-list', key: 'list' },
+            g.instances.map(inst => h('li', { className: 'formula-instance-item', key: inst.id }, [
+              h('span', { className: 'formula-instance-desc', key: 'desc' },
+                inst.sto + (inst.activity ? ' [' + inst.activity + ']' : '') + ' — ' + G.sectorLabel(inst.sector) +
+                ' (' + lowerFirst(G.entryLabel(inst.entry)) + ', ' + inst.size + ' membres' +
+                (inst.years ? ', ' + inst.years[0] + '–' + inst.years[inst.years.length - 1] : '') + ')'),
+              h('button', {
+                className: 'formula-instance-goto', key: 'go',
+                onClick: () => onGoTo({ sector: inst.sector, entry: inst.entry, sto: inst.sto, activity: inst.activity || undefined }),
+              }, 'Aller à cette carte →'),
+            ]))
+          ) : null,
+        ]);
+      }),
+    ]);
+  }
+
   // ---------- Application ----------
   function App() {
+    // 'explorer' (comportement historique, cartes+panneau) ou 'formulas'
+    // (catalogue des identités connues, voir FormulasCatalog) — remplace la
+    // zone principale, les sélecteurs du haut restent visibles dans les
+    // deux cas (inutilisés mais sans effet indésirable sur "formulas").
+    const [activeTab, setActiveTab] = React.useState('explorer');
     // la racine était jusque-là toujours dans le secteur de la graine (S1) :
     // rootSector devient un état pour que "repartir d'ici" (bouton sur
     // chaque carte) puisse re-raciner sur une carte d'un AUTRE secteur
@@ -585,17 +656,32 @@
             ]),
           ]),
         ]),
-      ]),
-      h('div', { className: 'layout', key: 'layout' }, [
-        h('main', { key: 'main' }, [
-          h(CardNode, {
-            key: rootSector + '|' + rootEntry + '|' + sto + (rootActivity ? '@' + rootActivity : ''),
-            sector: rootSector, entry: rootEntry, sto, activity: rootActivity, year, depth: 0,
-            path: 'root', expandedTree, onToggle: handleToggle, unit, pctRoot, onSetRoot: handleSetRoot,
-          }),
+        h('div', { className: 'tab-row', key: 'tabs' }, [
+          h('button', {
+            key: 'explorer', className: 'tab-btn' + (activeTab === 'explorer' ? ' active' : ''),
+            onClick: () => setActiveTab('explorer'),
+          }, 'Explorer'),
+          h('button', {
+            key: 'formulas', className: 'tab-btn' + (activeTab === 'formulas' ? ' active' : ''),
+            onClick: () => setActiveTab('formulas'),
+          }, 'Formules (' + FORMULA_GROUPS.length + ')'),
         ]),
-        h(Sidebar, { key: 'sidebar', sector: rootSector, entry: rootEntry, sto, year, expandedTree, unit, pctRoot }),
       ]),
+      activeTab === 'formulas'
+        ? h(FormulasCatalog, {
+          key: 'catalog',
+          onGoTo: (poste) => { handleSetRoot(poste); setActiveTab('explorer'); },
+        })
+        : h('div', { className: 'layout', key: 'layout' }, [
+          h('main', { key: 'main' }, [
+            h(CardNode, {
+              key: rootSector + '|' + rootEntry + '|' + sto + (rootActivity ? '@' + rootActivity : ''),
+              sector: rootSector, entry: rootEntry, sto, activity: rootActivity, year, depth: 0,
+              path: 'root', expandedTree, onToggle: handleToggle, unit, pctRoot, onSetRoot: handleSetRoot,
+            }),
+          ]),
+          h(Sidebar, { key: 'sidebar', sector: rootSector, entry: rootEntry, sto, year, expandedTree, unit, pctRoot }),
+        ]),
       h('p', { className: 'footnote', key: 'foot' },
         "Source : INSEE, comptes nationaux annuels (base 2020), fichiers Melodi DD_CNA_TEE et DD_CNA_SUT. Les identités comptables sont calculées pour 2024 puis appliquées à toutes les années disponibles ; pour des années anciennes, certains termes peuvent être indisponibles."
       ),

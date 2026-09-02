@@ -1118,5 +1118,102 @@ console.log('\n--- Test du membre décalé d\'une année (patrimoine) ---');
   }
 }
 
+// --- Test de l'onglet "Formules" (catalogue des identités connues) :
+// bascule l'onglet, déplie un groupe, vérifie que "aller à cette carte"
+// re-raciner correctement dessus ET revient sur l'onglet "Explorer".
+console.log('\n--- Test de l\'onglet "Formules" ---');
+{
+  function statefulUseStateCat(initial) {
+    const hooks = curHooksCat;
+    const i = curIdxCat++;
+    if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial;
+    return [hooks[i], (v) => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }];
+  }
+  let curHooksCat = null, curIdxCat = 0;
+  const sandboxCat = {
+    console,
+    document: makeFakeDom(),
+    React: { createElement: mockCreateElement, useState: statefulUseStateCat },
+    ReactDOM: { createRoot: () => ({ render: (el) => { sandboxCat.__rendered = el; } }) },
+  };
+  sandboxCat.window = sandboxCat;
+  vm.createContext(sandboxCat);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'data', 'tee_graph.js'), 'utf8'), sandboxCat);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'graph.js'), 'utf8'), sandboxCat);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'app.js'), 'utf8'), sandboxCat);
+
+  const hookStoresCat = {};
+  function renderCat(el, pathKey) {
+    if (el === null || el === undefined || typeof el === 'boolean' || typeof el === 'string' || typeof el === 'number') return el;
+    if (Array.isArray(el)) return el.map((e, i) => renderCat(e, pathKey + '.' + i));
+    if (typeof el !== 'object' || !('type' in el)) return el;
+    const t = el.type;
+    if (typeof t === 'function') {
+      const name = t.displayName || t.name || 'anon';
+      const key = pathKey + '/' + name + (el.props && el.props.key !== undefined ? ':' + el.props.key : '');
+      if (!hookStoresCat[key]) hookStoresCat[key] = [];
+      curHooksCat = hookStoresCat[key]; curIdxCat = 0;
+      return { __rendered: renderCat(t(el.props), key), __el: el };
+    }
+    return { type: t, props: Object.assign({}, el.props, el.props && el.props.children !== undefined ? { children: renderCat(el.props.children, pathKey + '.c') } : {}) };
+  }
+  function findAllCat(node, matchFn, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    if (node.__rendered !== undefined) { findAllCat(node.__rendered, matchFn, acc); return acc; }
+    if (Array.isArray(node)) { node.forEach(n => findAllCat(n, matchFn, acc)); return acc; }
+    if (matchFn(node)) acc.push(node);
+    if (node.props && node.props.children) findAllCat(node.props.children, matchFn, acc);
+    return acc;
+  }
+  function textOfCat(n) {
+    if (typeof n === 'string' || typeof n === 'number') return String(n);
+    if (Array.isArray(n)) return n.map(textOfCat).join('');
+    if (n && n.__rendered !== undefined) return textOfCat(n.__rendered);
+    if (n && n.props && n.props.children !== undefined) return textOfCat(n.props.children);
+    return '';
+  }
+  const isTabBtn = n => n.props && n.props.className && n.props.className.indexOf('tab-btn') === 0;
+  const isGroupHeader = n => n.props && n.props.className === 'formula-group-header';
+  const isGotoBtn = n => n.props && n.props.className === 'formula-instance-goto';
+  const isCardSto = n => n.props && n.props.className === 'card-sto';
+  const isLayout = n => n.props && n.props.className === 'layout';
+  const isCatalog = n => n.props && n.props.className === 'formulas-catalog';
+
+  let treeCat = renderCat(sandboxCat.__rendered, 'rootCat');
+  assert(findAllCat(treeCat, isLayout).length === 1, 'au départ (onglet "Explorer"), la zone cartes+panneau est affichée');
+  assert(findAllCat(treeCat, isCatalog).length === 0, 'et le catalogue des formules ne l\'est pas encore');
+
+  const tabBtns = findAllCat(treeCat, isTabBtn);
+  assert(tabBtns.length === 2, `2 boutons d'onglet affichés (trouvé ${tabBtns.length})`);
+  const formulasTabBtn = tabBtns.find(b => textOfCat(b.props.children).indexOf('Formules') === 0);
+  assert(!!formulasTabBtn, 'un onglet "Formules" est proposé');
+
+  if (formulasTabBtn) {
+    formulasTabBtn.props.onClick();
+    treeCat = renderCat(sandboxCat.__rendered, 'rootCat');
+    assert(findAllCat(treeCat, isCatalog).length === 1, 'cliquer l\'onglet "Formules" affiche le catalogue');
+    assert(findAllCat(treeCat, isLayout).length === 0, 'et masque la zone cartes+panneau');
+
+    const groupHeaders = findAllCat(treeCat, isGroupHeader);
+    assert(groupHeaders.length >= 5, `plusieurs types d'identités sont listés (trouvé ${groupHeaders.length})`);
+    assert(findAllCat(treeCat, isGotoBtn).length === 0, 'aucune instance repliée n\'affiche encore de bouton "aller à cette carte"');
+
+    const someHeader = groupHeaders[0];
+    someHeader.props.onClick();
+    treeCat = renderCat(sandboxCat.__rendered, 'rootCat');
+    const gotoBtns = findAllCat(treeCat, isGotoBtn);
+    assert(gotoBtns.length > 0, `déplier un groupe affiche ses instances (trouvé ${gotoBtns.length} bouton(s) "aller à cette carte")`);
+
+    if (gotoBtns.length > 0) {
+      gotoBtns[0].props.onClick();
+      treeCat = renderCat(sandboxCat.__rendered, 'rootCat');
+      assert(findAllCat(treeCat, isLayout).length === 1, '"aller à cette carte" revient sur l\'onglet "Explorer"');
+      assert(findAllCat(treeCat, isCatalog).length === 0, 'et masque de nouveau le catalogue');
+      assert(findAllCat(treeCat, isCardSto).length === 1, 'la carte racine correspondante est bien affichée');
+    }
+  }
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);
