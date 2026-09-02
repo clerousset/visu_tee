@@ -171,16 +171,23 @@ certains postes détaillés peuvent être indisponibles.
   normalement pour tous les secteurs, S14 y compris, une fois qu'on y est).
 - Le bilan patrimonial (poste `LE_N`, « Patrimoine en fin d'année », depuis
   `data/DD_CNA_PATRIMOINE_data.csv`) se réconcilie avec les flux qui
-  expliquent sa variation d'une année sur l'autre : `LE_N(N) = LE_N(N-1) +
-  F(N) + K7_ACTIFS_TOTAL(N) + KA_ACTIFS_TOTAL(N)` (flux financiers,
-  réévaluations, autres changements de volume et ajustements). C'est la
-  seule identité du site où un membre porte sur une AUTRE année que la
-  carte affichée : le terme « année précédente » ouvre une carte à sa
-  propre année (visible dans sa phrase et taguée dans l'équation, ex.
-  « PAT_LE_N_F (2005) »), via un décalage d'année par membre
-  (`yearOffset`) dans `graph.js::expandFormula`/`sameMember`. `LE_N` se
-  déplie aussi par classe d'instrument financier, comme le poste `F` du
-  TEE (bouton « Ventilation en instrument financier (patrimoine) »).
+  expliquent sa variation d'une année sur l'autre :
+  `LE_N(N) = LE_N(N-1) + <flux>(N) + K7_ACTIFS_TOTAL(N) + KA_ACTIFS_TOTAL(N)`
+  (réévaluations, autres changements de volume et ajustements — K7/KA
+  comptent pour 0 s'ils ne sont pas publiés pour cet instrument, plutôt que
+  d'exclure l'année). `<flux>` dépend de la classe d'actif : pour un
+  instrument financier (code `F...`) c'est `F` (flux financiers) ; pour un
+  actif NON financier (immobilier, systèmes d'armes, stocks, ... code
+  `N...`) c'est l'investissement brut moins la consommation de capital
+  fixe, `P5(N) - P51C(N)` — `P5` seul ne concorde jamais (l'investissement
+  brut ne suffit pas à expliquer la variation du stock, il faut retrancher
+  l'usure du capital). C'est la seule identité du site où un membre porte
+  sur une AUTRE année que la carte affichée : le terme « année précédente »
+  ouvre une carte à sa propre année (visible dans sa phrase et taguée dans
+  l'équation, ex. « PAT_LE_N_F (2005) »), via un décalage d'année par
+  membre (`yearOffset`) dans `graph.js::expandFormula`/`sameMember`. `LE_N`
+  se déplie aussi par classe d'instrument/actif, comme le poste `F` du TEE
+  (bouton « Ventilation en instrument financier (patrimoine) »).
 - Une identité qui n'est vérifiée que pour certaines années (les identités
   ci-dessus qui ne sont pas vraies par construction) reste proposée en
   dehors de ces années plutôt que masquée,

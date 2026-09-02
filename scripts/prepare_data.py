@@ -617,6 +617,12 @@ DATA_PATRIMOINE = f"{DATA_DIR}/DD_CNA_PATRIMOINE_data.csv"
 # poste dans le TEE avec une valeur légèrement différente (autre table,
 # même grandeur) — d'où le préfixe "PAT_" pour éviter toute collision.
 PATRIMOINE_STOS = ["LE_N", "F", "K7_ACTIFS_TOTAL", "KA_ACTIFS_TOTAL"]
+# pour les actifs non financiers (instrument "N..." — immobilier, systèmes
+# d'armes, stocks, ...), la réconciliation patrimoniale ne se fait pas via
+# F (propre aux instruments financiers) mais via l'investissement brut (P5)
+# moins la consommation de capital fixe (P51C) — voir
+# add_missing_patrimoine_p5_values / load_patrimoine_reconciliation_formulas.
+PATRIMOINE_P5_STOS = ["P5", "P51C"]
 
 
 def patrimoine_pseudo_sto(sto, instr):
@@ -666,14 +672,61 @@ def add_missing_patrimoine_values(values, src_csv=None):
     return added
 
 
+def add_missing_patrimoine_p5_values(values, src_csv=None):
+    # investissement brut (P5) et consommation de capital fixe (P51C), pour
+    # la réconciliation des actifs NON financiers (voir PATRIMOINE_P5_STOS
+    # et load_patrimoine_reconciliation_formulas) : P5 porte ses codes
+    # INSTR_ASSET avec un suffixe "G" ("brut") sur les actifs fixes (ex.
+    # N114G), mais pas sur les stocks/objets de valeur qui n'ont pas de
+    # distinction brut/net (N12, N13) — normalisé ici en retirant ce "G"
+    # pour retomber sur le même code que LE_N/P51C (N114, N12, ...), sans
+    # quoi il faudrait refaire la correspondance à chaque lecture. P5 n'a
+    # qu'une position (ACCOUNTING_ENTRY "D", l'investissement est toujours
+    # un emploi).
+    src_csv = src_csv or DATA_PATRIMOINE
+    stos = set(PATRIMOINE_P5_STOS)
+    added = set()
+    max_year = _max_loaded_year(values)
+    with open(src_csv, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["STO"] not in stos:
+                continue
+            if row["REF_SECTOR"] not in SECTEURS:
+                continue
+            if row["UNIT_MEASURE"] != "XDC":
+                continue
+            if row["PRICES"] != "V":
+                continue
+            if row["COUNTERPART_AREA"] != "W0":
+                continue
+            instr = row["INSTR_ASSET"]
+            if instr == "_Z":
+                continue
+            if row["STO"] == "P5" and instr.endswith("G") and instr != "G":
+                instr = instr[:-1]
+            sec, entry, year = row["REF_SECTOR"], row["ACCOUNTING_ENTRY"], row["TIME_PERIOD"]
+            if max_year is not None and int(year) > max_year:
+                continue
+            val = row["OBS_VALUE"]
+            if not val:
+                continue
+            code = patrimoine_pseudo_sto(row["STO"], instr)
+            bucket = values.setdefault(sec, {}).setdefault(entry, {}).setdefault(code, {})
+            if year not in bucket:
+                bucket[year] = round(float(val), 1)
+            added.add((sec, entry, code))
+    return added
+
+
 def add_missing_patrimoine_labels(sto_labels, codes):
     # libellé composite "libellé du poste — libellé de l'instrument" pour
     # chaque pseudo-poste PAT_{sto}_{instrument} (voir
-    # add_missing_patrimoine_values), à partir du libellé du poste
-    # (DD_CNA_PATRIMOINE_metadata.csv — "F" a déjà le sien depuis le TEE)
-    # et de celui de l'instrument (déjà complété par
-    # add_missing_instrument_labels). Le cas agrégé (instrument "F",
-    # "toutes classes") garde juste le libellé du poste.
+    # add_missing_patrimoine_values / add_missing_patrimoine_p5_values), à
+    # partir du libellé du poste (DD_CNA_PATRIMOINE_metadata.csv — "F" a
+    # déjà le sien depuis le TEE) et de celui de l'instrument (déjà
+    # complété par add_missing_instrument_labels). Le cas agrégé
+    # (instrument "F", "toutes classes") garde juste le libellé du poste.
     base_labels = {}
     with open(f"{DATA_DIR}/DD_CNA_PATRIMOINE_metadata.csv", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f, delimiter=";", quotechar='"')
@@ -686,7 +739,7 @@ def add_missing_patrimoine_labels(sto_labels, codes):
     for code in codes:
         if code in sto_labels:
             continue
-        sto = next((s for s in PATRIMOINE_STOS if code.startswith(f"PAT_{s}_")), None)
+        sto = next((s for s in PATRIMOINE_STOS + PATRIMOINE_P5_STOS if code.startswith(f"PAT_{s}_")), None)
         if sto is None:
             continue
         instr = code[len(f"PAT_{sto}_"):]
@@ -695,18 +748,26 @@ def add_missing_patrimoine_labels(sto_labels, codes):
 
 
 def load_patrimoine_reconciliation_formulas(values, codes):
-    # LE_N(N) = LE_N(N-1) + F(N) + K7_ACTIFS_TOTAL(N) + KA_ACTIFS_TOTAL(N) :
+    # LE_N(N) = LE_N(N-1) + <flux>(N) + K7_ACTIFS_TOTAL(N) + KA_ACTIFS_TOTAL(N) :
     # la position patrimoniale de clôture d'une année est celle de l'année
-    # précédente, plus les flux financiers, les réévaluations et les
-    # autres changements de volume de l'année (vérifié avant d'implémenter :
-    # 3828/4020 combinaisons secteur×instrument×position×année concordent
-    # exactement, le reste à de l'arrondi près). Première identité où un
-    # membre porte sur une AUTRE année que la cible (yearOffset, voir
-    # graph.js::expandFormula) : LE_N apparaît deux fois dans `members`,
-    # une fois comme cible (yearOffset implicite 0) et une fois comme
-    # membre décalé (yearOffset -1) — sameMember() les distingue par ce
-    # décalage, sans quoi le second serait confondu avec la cible et
-    # disparaîtrait du dépliage.
+    # précédente, plus les flux de l'année (financiers ou non financiers,
+    # selon l'instrument — voir plus bas), les réévaluations et les autres
+    # changements de volume. Première identité où un membre porte sur une
+    # AUTRE année que la cible (yearOffset, voir graph.js::expandFormula) :
+    # LE_N apparaît deux fois dans `members`, une fois comme cible
+    # (yearOffset implicite 0) et une fois comme membre décalé (yearOffset
+    # -1) — sameMember() les distingue par ce décalage, sans quoi le second
+    # serait confondu avec la cible et disparaîtrait du dépliage.
+    #
+    # Pour les instruments FINANCIERS (code commençant par "F"), <flux> est
+    # F lui-même (vérifié avant d'implémenter : 3828/4020 combinaisons
+    # secteur×instrument×position×année concordent exactement, le reste à
+    # de l'arrondi près). Pour les actifs NON financiers (immobilier,
+    # systèmes d'armes, stocks, ... code commençant par autre chose que
+    # "F", typiquement "N...") : F n'existe pas pour eux, <flux> est plutôt
+    # l'investissement brut (P5) moins la consommation de capital fixe
+    # (P51C) — vérifié avant d'implémenter : P5 seul ne concorde JAMAIS
+    # (0/1175), mais P5 - P51C concorde à 10491/11852 (88,5%).
     label = "Lien patrimoine/flux, réévaluations et autres changements de volume"
     formulas = {}
     index_extra = {}
@@ -714,25 +775,52 @@ def load_patrimoine_reconciliation_formulas(values, codes):
     le_n_codes = sorted(c for c in codes if c.startswith(le_n_prefix))
     for sector in SECTEURS:
         for entry in ("D", "C"):
+            by_entry = values.get(sector) or {}
             for le_n_code in le_n_codes:
                 instr = le_n_code[len(le_n_prefix):]
-                f_code = patrimoine_pseudo_sto("F", instr)
                 k7_code = patrimoine_pseudo_sto("K7_ACTIFS_TOTAL", instr)
                 ka_code = patrimoine_pseudo_sto("KA_ACTIFS_TOTAL", instr)
-                by_entry = values.get(sector) or {}
                 le_n_series = ((by_entry.get(entry) or {}).get(le_n_code)) or {}
-                f_series = ((by_entry.get(entry) or {}).get(f_code)) or {}
                 k7_series = ((by_entry.get(entry) or {}).get(k7_code)) or {}
                 ka_series = ((by_entry.get(entry) or {}).get(ka_code)) or {}
                 if not le_n_series:
                     continue
+
+                # (sto, signe affiché dans l'équation : +1 ajouté, -1 retranché)
+                if instr.startswith("F"):
+                    flow_terms = [(patrimoine_pseudo_sto("F", instr), 1)]
+                else:
+                    flow_terms = [
+                        (patrimoine_pseudo_sto("P5", instr), 1),
+                        (patrimoine_pseudo_sto("P51C", instr), -1),
+                    ]
+                flow_series_list = [((by_entry.get(entry) or {}).get(sto)) or {} for sto, _ in flow_terms]
+
                 valid_years = []
                 for year, target_val in le_n_series.items():
                     prev_val = le_n_series.get(str(int(year) - 1))
-                    fv, k7v, kav = f_series.get(year), k7_series.get(year), ka_series.get(year)
-                    if prev_val is None or fv is None or k7v is None or kav is None:
+                    if prev_val is None:
                         continue
-                    if abs(target_val - (prev_val + fv + k7v + kav)) < 1:
+                    # K7/KA (réévaluations, autres changements de volume) ne
+                    # sont pas toujours publiés pour les actifs non
+                    # financiers (ex. K7_ACTIFS_TOTAL/KA_ACTIFS_TOTAL
+                    # absents pour "systèmes d'armes") : absents, ils
+                    # comptent pour 0 plutôt que de rejeter l'année entière
+                    # (vérifié ainsi : 10491/11852 pour les actifs non
+                    # financiers).
+                    k7v = k7_series.get(year, 0.0)
+                    kav = ka_series.get(year, 0.0)
+                    flow_total = 0.0
+                    ok = True
+                    for (_, signe_affiche), series in zip(flow_terms, flow_series_list):
+                        v = series.get(year)
+                        if v is None:
+                            ok = False
+                            break
+                        flow_total += signe_affiche * v
+                    if not ok:
+                        continue
+                    if abs(target_val - (prev_val + flow_total + k7v + kav)) < 1:
                         valid_years.append(year)
                 if not valid_years:
                     continue
@@ -740,10 +828,11 @@ def load_patrimoine_reconciliation_formulas(values, codes):
                 member_dicts = [
                     {"sector": sector, "entry": entry, "sto": le_n_code, "signe": 1},
                     {"sector": sector, "entry": entry, "sto": le_n_code, "signe": -1, "yearOffset": -1},
-                    {"sector": sector, "entry": entry, "sto": f_code, "signe": -1},
-                    {"sector": sector, "entry": entry, "sto": k7_code, "signe": -1},
-                    {"sector": sector, "entry": entry, "sto": ka_code, "signe": -1},
                 ]
+                for sto, signe_affiche in flow_terms:
+                    member_dicts.append({"sector": sector, "entry": entry, "sto": sto, "signe": -signe_affiche})
+                member_dicts.append({"sector": sector, "entry": entry, "sto": k7_code, "signe": -1})
+                member_dicts.append({"sector": sector, "entry": entry, "sto": ka_code, "signe": -1})
                 formulas[fid] = {
                     "label": label,
                     "target": member_dicts[0],
@@ -864,6 +953,10 @@ def main():
     # add_missing_* pour que _max_loaded_year reflète déjà tout ce qui a
     # été complété jusqu'ici.
     patrimoine_added = add_missing_patrimoine_values(values)
+    # investissement brut (P5) et consommation de capital fixe (P51C) :
+    # nécessaires pour réconcilier les actifs NON financiers, voir
+    # load_patrimoine_reconciliation_formulas.
+    patrimoine_added |= add_missing_patrimoine_p5_values(values)
     patrimoine_codes = {c for _, _, c in patrimoine_added}
     add_missing_patrimoine_labels(labels["STO"], patrimoine_codes)
     tee_generic_formulas, tee_generic_index = load_generic_formulas(
