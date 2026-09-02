@@ -1,10 +1,10 @@
-# Explorateur du Tableau Économique d'Ensemble (TEE)
+# Explorateur de la comptabilité nationale
 
 Site d'exploration des comptes nationaux annuels français (INSEE) sous forme
 de cartes : chaque carte représente une valeur observée (secteur
 institutionnel x poste comptable x position ressource/emploi/solde x année).
 Quand une valeur participe à une identité comptable (définition d'un solde,
-ventilation par secteur, décomposition en sous-catégories), un bouton permet
+ventilation par secteur, décomposition en sous-catégories etc.), un bouton permet
 de déplier les autres valeurs de cette identité sous forme de nouvelles
 cartes reliées à la première.
 
@@ -130,11 +130,11 @@ certains postes détaillés peuvent être indisponibles.
   ressources et emplois (SUT). Ce bouton n'est numériquement vérifié que pour
   les années où le total du SUT concorde avec la valeur du TEE (les deux
   sources ne sont pas toujours au même millésime) — en pratique 1978–2022.
-- Le SUT fournit aussi quelques identités générales au niveau agrégé (total
+- Le TES fournit aussi quelques identités générales au niveau agrégé (total
   des emplois en prix d'acquisition, formation de capital, valeur ajoutée —
   voir `scripts/sut_formulas.py::LIEN_SUT_FORMULAS`) : elles apparaissent
   comme des boutons de définition ordinaires, y compris pour deux postes qui
-  n'existent que dans le SUT (`TSPP`, total des emplois en prix
+  n'existent que dans le TES (`TSPP`, total des emplois en prix
   d'acquisition ; `TSBP`, en prix de base — ce dernier n'a en pratique
   jamais de décomposition qui concorde avec les données).
 - Le TEE lui-même fournit une identité du même genre, purement interne cette
