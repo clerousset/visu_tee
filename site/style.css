@@ -557,7 +557,7 @@ main {
   text-align: left;
   transition: all .15s;
 }
-.pill:hover { color: var(--text); border-color: var(--accent); }
+.pill:hover { color: var(--text); border-color: var(--accent); font-weight: 600; }
 .pill.active {
   background: rgba(91,141,239,0.15);
   color: var(--accent);
@@ -569,7 +569,7 @@ main {
   border-color: var(--warn);
   color: var(--warn);
 }
-.pill-unverified:hover { color: var(--warn); border-color: var(--warn); }
+.pill-unverified:hover { color: var(--warn); border-color: var(--warn); font-weight: 600; }
 .pill-unverified.active {
   background: rgba(230,184,0,0.15);
   color: var(--warn);
