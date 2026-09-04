@@ -899,6 +899,82 @@ def load_patrimoine_f_coherence_formulas(values):
     return formulas, index_extra
 
 
+def load_volume_values(values):
+    # Contrepartie "en volume chaîné" (PRICES == "L", par opposition à "V",
+    # valeur courante) du sélecteur "Prix" de l'UI — voir site/graph.js
+    # (paramètre `prices` de getValue/series/expandFormula). DD_CNA_TEE_data.csv
+    # (la source de la quasi-totalité des cartes) n'a AUCUNE ligne en volume
+    # chaîné (uniquement "U"/"V"/"_Z") : les volumes ne sont disponibles que
+    # pour une poignée de postes, dans deux fichiers séparés déjà utilisés
+    # ailleurs pour d'autres besoins (patrimoine, COICOP) — le sélecteur reste
+    # donc proposé partout (comme "Unités"), mais n'affiche autre chose que
+    # "—" que sur ces quelques cartes : c'est un choix assumé (voir
+    # README.md) plutôt qu'un défaut d'implémentation.
+    # Restreint aux (secteur,position,poste) déjà chargés comme carte "en
+    # valeur" (`values`), pour ne jamais faire apparaître une carte qui
+    # n'existerait qu'en volume.
+    volume_values = {}
+    max_year = _max_loaded_year(values)
+
+    def add(sec, entry, code, year, val):
+        if max_year is not None and int(year) > max_year:
+            return
+        if code not in ((values.get(sec) or {}).get(entry) or {}):
+            return
+        bucket = volume_values.setdefault(sec, {}).setdefault(entry, {}).setdefault(code, {})
+        if year not in bucket:
+            bucket[year] = round(float(val), 1)
+
+    # investissement brut et ses composantes (P5, P51G, P51C, P52, P53, P5M) :
+    # même filtre que add_missing_patrimoine_p5_values, sauf PRICES == "L" et
+    # INSTR_ASSET == "_Z" (poste agrégé, pas de ventilation par instrument).
+    with open(DATA_PATRIMOINE, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["PRICES"] != "L" or row["INSTR_ASSET"] != "_Z":
+                continue
+            if row["REF_SECTOR"] not in SECTEURS:
+                continue
+            if row["UNIT_MEASURE"] != "XDC":
+                continue
+            if row["COUNTERPART_AREA"] != "W0":
+                continue
+            if row["MATURITY"] != "_Z":
+                continue
+            val = row["OBS_VALUE"]
+            if not val:
+                continue
+            add(row["REF_SECTOR"], row["ACCOUNTING_ENTRY"], row["STO"], row["TIME_PERIOD"], val)
+
+    # dépense de consommation des ménages (P31, poste agrégé) : PRICES == "L"
+    # et EXPENDITURE == "_Z" (total, pas une fonction de consommation
+    # particulière) — COUNTERPART_AREA == "W0" ici (pas "W2" comme
+    # add_missing_coicop_values, qui charge les sous-catégories : le total
+    # EXPENDITURE == "_Z" n'a de ventilation par volume qu'à W0, la même aire
+    # que la carte P31 elle-même, chargée depuis le TEE par load_values).
+    with open(DATA_CONSO_COICOP, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["STO"] != "P31" or row["EXPENDITURE"] != "_Z":
+                continue
+            if row["REF_SECTOR"] not in SECTEURS:
+                continue
+            if row["UNIT_MEASURE"] != "XDC":
+                continue
+            if row["PRICES"] != "L":
+                continue
+            if row["COUNTERPART_AREA"] != "W0":
+                continue
+            if row["PRODUCT"] != "_T":
+                continue
+            val = row["OBS_VALUE"]
+            if not val:
+                continue
+            add(row["REF_SECTOR"], row["ACCOUNTING_ENTRY"], "P31", row["TIME_PERIOD"], val)
+
+    return volume_values
+
+
 def main():
     src_data = sys.argv[1] if len(sys.argv) > 1 else f"{DATA_DIR}/DD_CNA_TEE_data.csv"
     labels = load_metadata()
@@ -1044,6 +1120,8 @@ def main():
     for idxkey, ids in patrimoine_f_coherence_index.items():
         index.setdefault(idxkey, []).extend(ids)
 
+    volume_values = load_volume_values(values)
+
     # source des données affichée en petit sur chaque carte (site/app.js,
     # graph.js::sourceFor) : "DD_CNA_TEE" par défaut (non stockée), sauf
     # exception explicite ici. instrument_added (classes d'instruments
@@ -1081,6 +1159,7 @@ def main():
         "formulas": formulas,
         "index": index,
         "values": values,
+        "volumeValues": volume_values,
         "activityValues": activity_values,
         "posteSource": poste_source,
     }

@@ -11,8 +11,19 @@
 
   function makeGraph(D) {
     // valeur "brute" (en niveau) pour une année donnée ; getValue() s'appuie
-    // dessus pour aussi calculer un delta (voir plus bas)
-    function getRawValue(sector, entry, sto, year, activity) {
+    // dessus pour aussi calculer un delta (voir plus bas). `prices` optionnel
+    // ('L' = volume chaîné, menu "Prix" de l'UI) lit D.volumeValues au lieu
+    // de D.values — une dimension distincte de `activity` (aucun poste
+    // ventilé par activité n'a de contrepartie en volume), d'où le null
+    // immédiat si les deux sont demandés ensemble.
+    function getRawValue(sector, entry, sto, year, activity, prices) {
+      if (prices === 'L') {
+        if (activity) return null;
+        const v = (((D.volumeValues || {})[sector] || {})[entry] || {})[sto];
+        if (!v) return null;
+        const val = v[String(year)];
+        return val === undefined ? null : val;
+      }
       if (activity) {
         const v = ((((D.activityValues || {})[sector] || {})[entry] || {})[sto] || {})[activity];
         if (!v) return null;
@@ -38,19 +49,22 @@
     // par linéarité de l'identité comptable (Δroot = Σ signe*Δmembre),
     // Σ contribution_i = taux de croissance de la racine, à n'importe
     // quelle profondeur de dépliage.
-    function getValue(sector, entry, sto, year, activity, unit, pctRoot) {
+    // `prices` optionnel ('L' = volume chaîné, menu "Prix" de l'UI) : voir
+    // getRawValue — ne change rien à la formule delta/pct elle-même, juste
+    // la série sur laquelle elle porte.
+    function getValue(sector, entry, sto, year, activity, unit, pctRoot, prices) {
       if (unit === 'delta' || unit === 'pct') {
-        const cur = getRawValue(sector, entry, sto, year, activity);
-        const prev = getRawValue(sector, entry, sto, (+year) - 1, activity);
+        const cur = getRawValue(sector, entry, sto, year, activity, prices);
+        const prev = getRawValue(sector, entry, sto, (+year) - 1, activity, prices);
         if (cur === null || prev === null) return null;
         const delta = cur - prev;
         if (unit === 'delta') return delta;
         if (!pctRoot) return null;
-        const base = getRawValue(pctRoot.sector, pctRoot.entry, pctRoot.sto, (+year) - 1, pctRoot.activity);
+        const base = getRawValue(pctRoot.sector, pctRoot.entry, pctRoot.sto, (+year) - 1, pctRoot.activity, prices);
         if (base === null || base === 0) return null;
         return (delta / base) * 100;
       }
-      return getRawValue(sector, entry, sto, year, activity);
+      return getRawValue(sector, entry, sto, year, activity, prices);
     }
 
     function stoLabel(sto) { return D.labelsSto[sto] || sto; }
@@ -78,9 +92,10 @@
 
     // série annuelle complète d'un poste, triée par année croissante, pour
     // affichage en mini-graphique (sparkline) ; `unit` optionnel ('delta')
-    // renvoie la série des variations année sur année plutôt que le niveau
-    function series(sector, entry, sto, unit) {
-      const v = ((D.values[sector] || {})[entry] || {})[sto];
+    // renvoie la série des variations année sur année plutôt que le niveau.
+    // `prices` optionnel ('L' = volume chaîné) : voir getRawValue.
+    function series(sector, entry, sto, unit, prices) {
+      const v = (((prices === 'L' ? (D.volumeValues || {}) : D.values)[sector] || {})[entry] || {})[sto];
       if (!v) return [];
       const years = Object.keys(v).map(y => +y).sort((a, b) => a - b);
       if (unit === 'delta') {
@@ -161,7 +176,7 @@
     // précédente) — la carte qu'il déplie hérite de cette année décalée
     // (voir app.js::FormulaGroup), donc tout se recompose correctement en
     // cascade si on déplie la même identité plusieurs fois de suite.
-    function expandFormula(id, originSector, originEntry, originSto, year, originActivity, unit, pctRoot) {
+    function expandFormula(id, originSector, originEntry, originSto, year, originActivity, unit, pctRoot, prices) {
       const f = D.formulas[id];
       if (!f) return null;
       const isOrigin = m => sameMember(m, originSector, originEntry, originSto, originActivity, 0);
@@ -178,7 +193,7 @@
           signe: m.signe,
           yearOffset: m.yearOffset || 0,
           effectiveSign: -originSigne * m.signe,
-          value: getValue(m.sector, m.entry, m.sto, (+year) + (m.yearOffset || 0), m.activity, unit, pctRoot),
+          value: getValue(m.sector, m.entry, m.sto, (+year) + (m.yearOffset || 0), m.activity, unit, pctRoot, prices),
         }));
       // les soldes (position "B") passent toujours en premier à l'affichage
       // (tri stable : l'ordre relatif du reste, tel que dans formules_TEE.csv,

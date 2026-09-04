@@ -78,6 +78,19 @@ vérifier la connexion et recharger la page.
   variation, ou la contribution, d'une somme est la somme des variations ou
   contributions de ses termes), donc les décompositions et le panneau
   latéral restent cohérents.
+- Un sélecteur « Prix », juste après « Unités », propose « En valeur »
+  (comportement historique, `PRICES == "V"`) et « En volume chaîné »
+  (`PRICES == "L"`). DD_CNA_TEE_data.csv, source de la quasi-totalité des
+  cartes, n'a AUCUNE série en volume chaîné (seulement `PRICES` ∈
+  {U,V,\_Z}) : le sélecteur reste proposé partout (comme « Unités »), mais
+  n'affiche autre chose que « — » que sur la poignée de postes où un volume
+  existe dans un fichier séparé — l'investissement brut et ses composantes
+  (`P5`, `P51G`, `P51C`, `P52`, `P53`, depuis `DD_CNA_PATRIMOINE_data.csv`)
+  et la dépense de consommation des ménages (`P31`, depuis
+  `DD_CNA_CONSO_MENAGES_COICOP_data.csv`), à l'agrégat toutes catégories
+  seulement — voir `scripts/prepare_data.py::load_volume_values`. C'est un
+  choix assumé (montrer honnêtement ce qui manque plutôt que de masquer le
+  sélecteur) plutôt qu'un défaut d'implémentation.
 - Si la valeur affichée participe à une ou plusieurs identités comptables,
   des boutons apparaissent sous la carte, avec le libellé brut de
   `formules_TEE.csv` (ex. « Lien B9 B8 », « Ventilation en sous-secteur »).

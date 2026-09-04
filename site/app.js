@@ -144,8 +144,8 @@
   }
 
   // ---------- Icône + mini-graphique au survol (série annuelle complète) ----------
-  function SeriesHover({ sector, entry, sto, year, unit }) {
-    const s = G.series(sector, entry, sto, unit);
+  function SeriesHover({ sector, entry, sto, year, unit, prices }) {
+    const s = G.series(sector, entry, sto, unit, prices);
     if (s.length < 2) return null; // pas assez de points pour un graphique utile
     const geom = TeeGraphLib.sparklineGeometry(s, { width: 240, height: 84, pad: 10 });
     const current = s.find(p => p.year === year);
@@ -178,16 +178,17 @@
   }
 
   // ---------- Carte ----------
-  function Card({ sector, entry, sto, year, value, effectiveSign, hasFormulas, activity, unit, isRoot, pctRoot, onSetRoot }) {
+  function Card({ sector, entry, sto, year, value, effectiveSign, hasFormulas, activity, unit, isRoot, pctRoot, onSetRoot, prices }) {
     const signClass = value === null ? '' : value >= 0 ? 'pos' : 'neg';
     const isDelta = unit === 'delta';
     const isPct = unit === 'pct';
+    const isVolume = prices === 'L';
     const meaningText = lowerFirst(G.stoLabel(sto));
     // les valeurs ventilées par activité (SUT) n'ont pas de série annuelle
     // embarquée sous cette forme, et l'unité "pct" n'a pas d'historique
     // calculé (seulement l'année sélectionnée) : pas de mini-graphique
     // pour ces cartes
-    const seriesHover = (activity || isPct) ? null : h(SeriesHover, { key: 'series', sector, entry, sto, year, unit });
+    const seriesHover = (activity || isPct) ? null : h(SeriesHover, { key: 'series', sector, entry, sto, year, unit, prices });
     const activityPhrase = activity ? ', dans l’activité ' + lowerFirst(G.activityLabel(activity)) : '';
     // en "pct", la carte de départ affiche son propre taux de croissance,
     // les autres cartes leur contribution à CETTE croissance (voir
@@ -197,12 +198,13 @@
       ? (isRoot ? 'de croissance de ' + meaningText : 'de contribution de ' + meaningText + ' à la croissance de ' + rootMeaningText)
       : isDelta ? 'de variation de ' + meaningText : 'de ' + meaningText;
     const yearPhrase = (isDelta || isPct) ? 'entre ' + (year - 1) + ' et ' + year : 'de ' + year;
+    const pricesPhrase = isVolume ? ' en volume chaîné' : '';
 
     const sentence = h('p', { className: 'card-sentence', key: 'sentence' }, [
       h('strong', { className: 'card-value ' + signClass, key: 'val' }, fmtValue(value, unit)),
       ' ',
       seriesHover,
-      ' ' + quantityPhrase + ' ' + yearPhrase,
+      ' ' + quantityPhrase + pricesPhrase + ' ' + yearPhrase,
       ' pour ' + sectorPhrase(sector) + activityPhrase + '.' + (hasFormulas ? ' Ils peuvent se décomposer :' : ''),
     ]);
 
@@ -259,8 +261,8 @@
   // dépliage (ex. "root>F12>S11|D|D7") ; les cartes enfants héritent d'un
   // chemin qui préfixe le leur, ce qui permet à handleToggle() de retrouver
   // et refermer toute une branche d'un coup (voir plus bas).
-  function FormulaGroup({ sector, entry, sto, year, formulaId, depth, path, expandedTree, onToggle, activity, unit, pctRoot, onSetRoot }) {
-    const exp = G.expandFormula(formulaId, sector, entry, sto, year, activity, unit, pctRoot);
+  function FormulaGroup({ sector, entry, sto, year, formulaId, depth, path, expandedTree, onToggle, activity, unit, pctRoot, onSetRoot, prices }) {
+    const exp = G.expandFormula(formulaId, sector, entry, sto, year, activity, unit, pctRoot, prices);
     if (!exp) return null;
     // en delta/pct, chaque terme de l'équation est lui-même une variation :
     // le préfixe le rappelle sur le code abrégé (ex. "ΔD9R_C", "Δ%D9R_C")
@@ -312,6 +314,7 @@
             unit,
             pctRoot,
             onSetRoot,
+            prices,
           });
         })
       ),
@@ -323,8 +326,8 @@
   // App (expandedTree), pas en useState local : ainsi, replier une identité
   // referme automatiquement (et proprement, dans le panneau latéral) toutes
   // les sous-décompositions ouvertes en dessous, sans état local à nettoyer.
-  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, path, expandedTree, onToggle, activity, unit, pctRoot, onSetRoot }) {
-    const value = G.getValue(sector, entry, sto, year, activity, unit, pctRoot);
+  function CardNode({ sector, entry, sto, year, effectiveSign, depth, excludeFormulaId, path, expandedTree, onToggle, activity, unit, pctRoot, onSetRoot, prices }) {
+    const value = G.getValue(sector, entry, sto, year, activity, unit, pctRoot, prices);
     // on ne repropose pas la formule qui a généré cette carte (évite un
     // dépliage trivial "vers le parent" juste après avoir déplié celui-ci)
     const formulas = G.getFormulasFor(sector, entry, sto, year, activity).filter(f => f.id !== excludeFormulaId);
@@ -335,7 +338,7 @@
       formulas.map(f => {
         // bulle explicative : l'équation en toutes lettres, visible avant
         // même de cliquer sur le bouton pour déplier l'identité
-        const exp = G.expandFormula(f.id, sector, entry, sto, year, activity, unit, pctRoot);
+        const exp = G.expandFormula(f.id, sector, entry, sto, year, activity, unit, pctRoot, prices);
         const preview = exp ? formulaPreviewText(exp, sector, sto, entry, unit, year) : undefined;
         const title = f.verified ? preview : [preview, '⚠ ' + UNVERIFIED_MESSAGE].filter(Boolean).join('\n');
         return h('button', {
@@ -350,11 +353,11 @@
     const groups = Object.keys(active)
       .filter(id => active[id])
       .map(id => h(FormulaGroup, {
-        key: id, sector, entry, sto, year, activity, formulaId: id, depth: depth || 0, path, expandedTree, onToggle, unit, pctRoot, onSetRoot,
+        key: id, sector, entry, sto, year, activity, formulaId: id, depth: depth || 0, path, expandedTree, onToggle, unit, pctRoot, onSetRoot, prices,
       }));
 
     return h('div', { className: 'card-node' }, [
-      h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign, hasFormulas: formulas.length > 0, activity, unit, isRoot: (depth || 0) === 0, pctRoot, onSetRoot }),
+      h(Card, { key: 'card', sector, entry, sto, year, value, effectiveSign, hasFormulas: formulas.length > 0, activity, unit, isRoot: (depth || 0) === 0, pctRoot, onSetRoot, prices }),
       pills,
       groups.length ? h('div', { className: 'groups-stack', key: 'groups' }, groups) : null,
     ]);
@@ -369,15 +372,15 @@
   // graphique, la contribution du poste concerné par ses propres membres.
   // Si plusieurs identités alternatives sont ouvertes sur un même poste, on
   // n'en retient qu'une (la première) pour garder un seul graphe cohérent.
-  function collectLeaves(sector, entry, sto, year, path, expandedTree, effectiveSign, depth, activity, unit, pctRoot) {
+  function collectLeaves(sector, entry, sto, year, path, expandedTree, effectiveSign, depth, activity, unit, pctRoot, prices) {
     const active = (expandedTree[path] && expandedTree[path].active) || {};
     const activeIds = Object.keys(active).filter(id => active[id]);
     if (activeIds.length === 0) {
-      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity, unit, pctRoot), depth }];
+      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity, unit, pctRoot, prices), depth }];
     }
-    const exp = G.expandFormula(activeIds[0], sector, entry, sto, year, activity, unit, pctRoot);
+    const exp = G.expandFormula(activeIds[0], sector, entry, sto, year, activity, unit, pctRoot, prices);
     if (!exp) {
-      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity, unit, pctRoot), depth }];
+      return [{ sector, entry, sto, activity: activity || null, effectiveSign, value: G.getValue(sector, entry, sto, year, activity, unit, pctRoot, prices), depth }];
     }
     const childPrefix = path + '>' + activeIds[0] + '>';
     const leaves = [];
@@ -385,7 +388,7 @@
       const childPath = childPrefix + m.sector + '|' + m.entry + '|' + m.sto + (m.activity ? '@' + m.activity : '');
       leaves.push(...collectLeaves(
         m.sector, m.entry, m.sto, year, childPath, expandedTree,
-        effectiveSign * m.effectiveSign, depth + 1, m.activity, unit, pctRoot
+        effectiveSign * m.effectiveSign, depth + 1, m.activity, unit, pctRoot, prices
       ));
     });
     return leaves;
@@ -418,8 +421,8 @@
     return s.activity ? base + ' [' + s.activity + ']' : base;
   }
 
-  function Sidebar({ sector, entry, sto, year, expandedTree, unit, pctRoot }) {
-    const leaves = collectLeaves(sector, entry, sto, year, 'root', expandedTree, 1, 0, undefined, unit, pctRoot);
+  function Sidebar({ sector, entry, sto, year, expandedTree, unit, pctRoot, prices }) {
+    const leaves = collectLeaves(sector, entry, sto, year, 'root', expandedTree, 1, 0, undefined, unit, pctRoot, prices);
     if (leaves.length <= 1) {
       return h('aside', { className: 'sidebar' }, [
         h('div', { className: 'sidebar-panel', key: 'empty' }, [
@@ -431,7 +434,7 @@
     }
 
     const codePrefix = unit === 'pct' ? 'Δ%' : unit === 'delta' ? 'Δ' : '';
-    const rootValue = G.getValue(sector, entry, sto, year, undefined, unit, pctRoot);
+    const rootValue = G.getValue(sector, entry, sto, year, undefined, unit, pctRoot, prices);
     const grouped = groupSmallContributions(leaves, MAX_SIDEBAR_SEGMENTS);
     const bar = TeeGraphLib.stackedBarGeometry(grouped, { width: 64, height: 320, pad: 4 });
 
@@ -601,6 +604,15 @@
     // les autres) ; se propage à toutes les valeurs affichées (cartes,
     // équations, panneau latéral) via graph.js::getValue/series/expandFormula
     const [unit, setUnit] = React.useState('level');
+    // 'V' (valeur courante, comportement historique) ou 'L' (volume chaîné) ;
+    // se propage comme `unit` (menu "Prix" de l'UI, voir
+    // graph.js::getValue/series/expandFormula). DD_CNA_TEE_data.csv (la
+    // source de la quasi-totalité des cartes) n'a aucune série en volume
+    // chaîné : le sélecteur reste proposé partout, mais n'affiche autre
+    // chose que "—" que sur la poignée de postes couverts par
+    // scripts/prepare_data.py::load_volume_values (investissement et ses
+    // composantes, dépense de consommation des ménages) — voir README.md.
+    const [prices, setPrices] = React.useState('V');
     // dénominateur commun de l'unité "pct" : le poste de départ courant,
     // recalculé à chaque rendu (bon marché, pas de useMemo nécessaire ici)
     const pctRoot = { sector: rootSector, entry: rootEntry, sto, activity: rootActivity };
@@ -680,6 +692,16 @@
               h('option', { key: 'pct', value: 'pct' }, 'En pourcentage / contributions'),
             ]),
           ]),
+          h('label', { key: 'l4', className: 'inline-label' }, [
+            'Prix ',
+            h('select', {
+              value: prices,
+              onChange: (e) => setPrices(e.target.value),
+            }, [
+              h('option', { key: 'V', value: 'V' }, 'En valeur'),
+              h('option', { key: 'L', value: 'L' }, 'En volume chaîné'),
+            ]),
+          ]),
         ]),
         h('div', { className: 'tab-row', key: 'tabs' }, [
           h('button', {
@@ -702,10 +724,10 @@
             h(CardNode, {
               key: rootSector + '|' + rootEntry + '|' + sto + (rootActivity ? '@' + rootActivity : ''),
               sector: rootSector, entry: rootEntry, sto, activity: rootActivity, year, depth: 0,
-              path: 'root', expandedTree, onToggle: handleToggle, unit, pctRoot, onSetRoot: handleSetRoot,
+              path: 'root', expandedTree, onToggle: handleToggle, unit, pctRoot, onSetRoot: handleSetRoot, prices,
             }),
           ]),
-          h(Sidebar, { key: 'sidebar', sector: rootSector, entry: rootEntry, sto, year, expandedTree, unit, pctRoot }),
+          h(Sidebar, { key: 'sidebar', sector: rootSector, entry: rootEntry, sto, year, expandedTree, unit, pctRoot, prices }),
         ]),
       h('p', { className: 'footnote', key: 'foot' },
         "Source : INSEE, comptes nationaux annuels (base 2020), fichiers Melodi DD_CNA_TEE et DD_CNA_SUT. Les identités comptables sont calculées pour 2024 puis appliquées à toutes les années disponibles ; pour des années anciennes, certains termes peuvent être indisponibles."

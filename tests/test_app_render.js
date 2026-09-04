@@ -662,12 +662,17 @@ console.log('\n--- Test du sélecteur "Unités" (en niveau / en delta) ---');
 
   let tree6 = render6(sandbox6.__rendered, 'root6');
   const selects6 = findAll6(tree6, isSelect6);
-  assert(selects6.length === 3, `3 sélecteurs affichés (poste, année, unités) (trouvé ${selects6.length})`);
+  assert(selects6.length === 4, `4 sélecteurs affichés (poste, année, unités, prix) (trouvé ${selects6.length})`);
   const unitSelect = selects6[2];
   assert(unitSelect.props.value === 'level', 'le sélecteur "Unités" démarre sur "en niveau"');
   const unitOptionValues = unitSelect.props.children.map(o => o.props.value);
   assert(unitOptionValues.indexOf('level') !== -1 && unitOptionValues.indexOf('delta') !== -1,
     `le sélecteur "Unités" propose "level" et "delta" (trouvé ${unitOptionValues.join(',')})`);
+  const pricesSelect = selects6[3];
+  assert(pricesSelect.props.value === 'V', 'le sélecteur "Prix" démarre sur "en valeur"');
+  const pricesOptionValues = pricesSelect.props.children.map(o => o.props.value);
+  assert(pricesOptionValues.indexOf('V') !== -1 && pricesOptionValues.indexOf('L') !== -1,
+    `le sélecteur "Prix" propose "V" et "L" (trouvé ${pricesOptionValues.join(',')})`);
 
   const sto6 = findAll6(tree6, n => n.props && n.props.className === 'card-sto')[0];
   assert(textOf6(sto6) === D6.seed.sto, `en niveau, le badge du poste n'a pas de préfixe Δ (trouvé "${textOf6(sto6)}")`);
@@ -707,6 +712,110 @@ console.log('\n--- Test du sélecteur "Unités" (en niveau / en delta) ---');
   tree6 = render6(sandbox6.__rendered, 'root6');
   const stoBackToLevel = textOf6(findAll6(tree6, n => n.props && n.props.className === 'card-sto')[0]);
   assert(stoBackToLevel === D6.seed.sto, 'revenir "en niveau" retire le préfixe Δ du badge du poste');
+}
+
+// --- Test du sélecteur "Prix" (en valeur / en volume chaîné) : la source
+// principale (TEE) n'a aucune série en volume chaîné, donc la carte de
+// départ (D1/S1) doit afficher "—" en volume ; en revanche P51G/S1/D fait
+// partie de la poignée de postes couverts (scripts/prepare_data.py::
+// load_volume_values, depuis DD_CNA_PATRIMOINE_data.csv) et doit afficher
+// une vraie valeur, différente de son équivalent "en valeur".
+console.log('\n--- Test du sélecteur "Prix" (en valeur / en volume chaîné) ---');
+{
+  let curHooks = null, curIdx = 0;
+  function statefulUseState(initial) {
+    const hooks = curHooks;
+    const i = curIdx++;
+    if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial;
+    return [hooks[i], (v) => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }];
+  }
+  const sandboxP = {
+    console,
+    document: makeFakeDom(),
+    React: { createElement: mockCreateElement, useState: statefulUseState },
+    ReactDOM: { createRoot: () => ({ render: (el) => { sandboxP.__rendered = el; } }) },
+  };
+  sandboxP.window = sandboxP;
+  vm.createContext(sandboxP);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'data', 'tee_graph.js'), 'utf8'), sandboxP);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'graph.js'), 'utf8'), sandboxP);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'app.js'), 'utf8'), sandboxP);
+  const GP = vm.runInContext('TeeGraphLib', sandboxP).makeGraph(vm.runInContext('TEE_GRAPH', sandboxP));
+  const DP = vm.runInContext('TEE_GRAPH', sandboxP);
+
+  const hookStoresP = {};
+  function renderP(el, pathKey) {
+    if (el === null || el === undefined || typeof el === 'boolean' || typeof el === 'string' || typeof el === 'number') return el;
+    if (Array.isArray(el)) return el.map((e, i) => renderP(e, pathKey + '.' + i));
+    if (typeof el !== 'object' || !('type' in el)) return el;
+    const t = el.type;
+    if (typeof t === 'function') {
+      const name = t.displayName || t.name || 'anon';
+      const key = pathKey + '/' + name + (el.props && el.props.key !== undefined ? ':' + el.props.key : '');
+      if (!hookStoresP[key]) hookStoresP[key] = [];
+      curHooks = hookStoresP[key]; curIdx = 0;
+      return { __rendered: renderP(t(el.props), key), __el: el };
+    }
+    return { type: t, props: Object.assign({}, el.props, el.props && el.props.children !== undefined ? { children: renderP(el.props.children, pathKey + '.c') } : {}) };
+  }
+  function findAllP(node, matchFn, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    if (node.__rendered !== undefined) { findAllP(node.__rendered, matchFn, acc); return acc; }
+    if (Array.isArray(node)) { node.forEach(n => findAllP(n, matchFn, acc)); return acc; }
+    if (matchFn(node)) acc.push(node);
+    if (node.props && node.props.children) findAllP(node.props.children, matchFn, acc);
+    return acc;
+  }
+  function textOfP(n) {
+    if (typeof n === 'string' || typeof n === 'number') return String(n);
+    if (Array.isArray(n)) return n.map(textOfP).join('');
+    if (n && n.__rendered !== undefined) return textOfP(n.__rendered);
+    if (n && n.props && n.props.children !== undefined) return textOfP(n.props.children);
+    return '';
+  }
+  const isSelectP = n => n.type === 'select';
+
+  let treeP = renderP(sandboxP.__rendered, 'rootP');
+  const selectsP = findAllP(treeP, isSelectP);
+  const posteSelect = selectsP[0];
+  const pricesSelect = selectsP[3];
+
+  // bascule sur "en volume chaîné" : la graine (D1/S1, aucune série en
+  // volume) doit afficher "—"
+  pricesSelect.props.onChange({ target: { value: 'L' } });
+  treeP = renderP(sandboxP.__rendered, 'rootP');
+  const seedValueVolume = textOfP(findAllP(treeP, n => n.props && n.props.className && n.props.className.indexOf('card-value') === 0)[0]);
+  assert(seedValueVolume === '—', `D1/S1 (non couvert) affiche "—" en volume chaîné (trouvé "${seedValueVolume}")`);
+  const seedSentenceVolume = textOfP(findAllP(treeP, n => n.props && n.props.className === 'card-sentence')[0]);
+  assert(seedSentenceVolume.indexOf('en volume chaîné') !== -1,
+    `la phrase de la carte mentionne "en volume chaîné" (trouvé "${seedSentenceVolume}")`);
+
+  // repart sur P51G/S1/D (formation brute de capital fixe), l'un des
+  // quelques postes couverts par load_volume_values : le sélecteur "Prix"
+  // reste sur "L" (indépendant du poste de départ, comme "Unités")
+  posteSelect.props.onChange({ target: { value: 'D|P51G' } });
+  treeP = renderP(sandboxP.__rendered, 'rootP');
+  const pricesSelectAfter = findAllP(treeP, isSelectP)[3];
+  assert(pricesSelectAfter.props.value === 'L', 'changer de poste de départ ne réinitialise pas le sélecteur "Prix"');
+
+  const seedSeriesP = GP.series('S1', 'D', 'P51G');
+  const defaultYearP = seedSeriesP[seedSeriesP.length - 1].year;
+  const expectedVolume = GP.getValue('S1', 'D', 'P51G', defaultYearP, undefined, 'level', undefined, 'L');
+  const expectedValue = GP.getValue('S1', 'D', 'P51G', defaultYearP, undefined, 'level', undefined, 'V');
+  assert(expectedVolume !== null, 'P51G/S1/D a bien une série en volume chaîné à l\'année par défaut');
+  assert(expectedVolume !== expectedValue,
+    `le volume chaîné diffère de la valeur courante pour P51G/S1/D (volume=${expectedVolume}, valeur=${expectedValue})`);
+
+  const p51gValueVolume = textOfP(findAllP(treeP, n => n.props && n.props.className && n.props.className.indexOf('card-value') === 0)[0]);
+  assert(p51gValueVolume !== '—', `P51G/S1/D (couvert) affiche une vraie valeur en volume chaîné (trouvé "${p51gValueVolume}")`);
+
+  // revient "en valeur" : la carte P51G change de nouveau
+  pricesSelect.props.onChange({ target: { value: 'V' } });
+  treeP = renderP(sandboxP.__rendered, 'rootP');
+  const p51gValueLevel = textOfP(findAllP(treeP, n => n.props && n.props.className && n.props.className.indexOf('card-value') === 0)[0]);
+  assert(p51gValueLevel !== p51gValueVolume,
+    `revenir "en valeur" change la valeur affichée (volume="${p51gValueVolume}", valeur="${p51gValueLevel}")`);
 }
 
 // --- Test de l'unité "pct" (croissance annuelle / contributions) : la
