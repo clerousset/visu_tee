@@ -1,0 +1,292 @@
+"COD_VAR";"LIB_VAR";"COD_MOD";"LIB_MOD";"GEO_OBJECT"
+"ACCOUNTING_ENTRY";"Position de compte";"D";"Emploi ou débit";
+"ACCOUNTING_ENTRY";"Position de compte";"C";"Ressource ou crédit";
+"ACCOUNTING_ENTRY";"Position de compte";"_Z";"Non applicable";
+"ACCOUNTING_ENTRY";"Position de compte";"B";"Solde";
+"ACTIVITY";"Activité économique";"A";"Agriculture, sylviculture et pêche";
+"ACTIVITY";"Activité économique";"BTE";"Industrie manufacturière, industries extractives et autres";
+"ACTIVITY";"Activité économique";"C";"Industrie manufacturière";
+"ACTIVITY";"Activité économique";"F";"Construction";
+"ACTIVITY";"Activité économique";"GTI";"Commerce de gros et de détail, transports, hébergement et restauration";
+"ACTIVITY";"Activité économique";"J";"Information et communication";
+"ACTIVITY";"Activité économique";"K";"Activités financières et d'assurance";
+"ACTIVITY";"Activité économique";"L";"Activités immobilières";
+"ACTIVITY";"Activité économique";"M_N";"Activités spécialisées, scientifiques et techniques et activités de services administratifs et de soutien";
+"ACTIVITY";"Activité économique";"RTU";"Arts, divertissement et loisirs ; autres activités de services ; activités des ménages, des organismes et organisations extraterritoriaux";
+"ACTIVITY";"Activité économique";"OTQ";"Administration publique, défense, enseignement, santé humaine et action sociale";
+"ACTIVITY";"Activité économique";"GTJ";"Commerce de gros et de détail ; réparation d'automobiles et de motocycles";
+"ACTIVITY";"Activité économique";"KTN";"Activités financières et d'assurance, activités immobilières, activités spécialisées, scientifiques et techniques, activités de services administratifs et de soutien, administration publique et défense ; sécurité sociale obligatoire, éducation, santé humaine et action sociale, arts, spectacles et activités récréatives, autres activités de services, activités des ménages en tant qu'employeurs ; activités indifférenciées des ménages en tant que producteurs de biens et de services pour usage propre, activités des organisations et organismes extraterritoriaux";
+"ACTIVITY";"Activité économique";"OTU";"Administration publique et défense ; sécurité sociale obligatoire";
+"ACTIVITY";"Activité économique";"B_D_E";"Industries extractives, énergie, eau, gestion des déchets et dépollution";
+"ACTIVITY";"Activité économique";"C10T12";"Fabrication de denrées alimentaires, de boissons et de produits à base de tabac";
+"ACTIVITY";"Activité économique";"C_OTH";"Autres industries manufacturières (C15, C23, C27, C31, C32, C33)";
+"ACTIVITY";"Activité économique";"C19";"Cokéfaction et raffinage";
+"ACTIVITY";"Activité économique";"C26T28";"Fabrication de produits informatiques, électroniques et optiques, d'équipements électriques, et de machines et équipements n.c.a.";
+"ACTIVITY";"Activité économique";"C29_30";"Fabrication de matériels de transport";
+"ACTIVITY";"Activité économique";"G";"Commerce ; réparation d'automobiles et de motocycles";
+"ACTIVITY";"Activité économique";"H";"Transports et entreposage";
+"ACTIVITY";"Activité économique";"I";"Hébergement et restauration";
+"ACTIVITY";"Activité économique";"_T";"Total";
+"CONF_STATUS";"Statut de confidentialité";"F";"Diffusable";
+"COUNTERPART_AREA";"Zone de contrepartie";"W0";"Monde";
+"COUNTERPART_AREA";"Zone de contrepartie";"W2";"Territoire national";
+"DECIMALS";"Décimales";"1";"Un";
+"DECIMALS";"Décimales";"3";"Trois";
+"FREQ";"Fréquence";"A";"Annuel";
+"OBS_STATUS";"Statut de l'observation";"P";"Valeur provisoire";
+"OBS_STATUS";"Statut de l'observation";"A";"Normale";
+"OBS_STATUS_FR";"Version";"PROV";"Provisoire";
+"OBS_STATUS_FR";"Version";"SD";"Semi-définitif";
+"OBS_STATUS_FR";"Version";"D";"Définitif";
+"PRICES";"Valorisation des prix";"V";"En valeur aux prix courants";
+"PRICES";"Valorisation des prix";"_Z";"Non applicable";
+"PRICES";"Valorisation des prix";"Y";"Aux prix de l’année précédente";
+"PRICES";"Valorisation des prix";"L";"En volume aux prix de l’année précédente chaînés";
+"REF_AREA";"Zone géographique de référence";"FR";"France";
+"REF_AREA";"Zone géographique de référence";"FRMET";"France métropolitaine";
+"REF_AREA";"Zone géographique de référence";"FRMETHIDF";"France métropolitaine hors Ile de France";
+"REF_AREA";"Zone géographique de référence";"FRC2";"Franche-Comté";
+"REF_AREA";"Zone géographique de référence";"FR1";"Île-de-France";
+"REF_AREA";"Zone géographique de référence";"FRD1";"Basse-Normandie";
+"REF_AREA";"Zone géographique de référence";"FRB";"Centre — Val de Loire";
+"REF_AREA";"Zone géographique de référence";"FRD2";"Haute-Normandie";
+"REF_AREA";"Zone géographique de référence";"FRC";"Bourgogne — Franche-Comté";
+"REF_AREA";"Zone géographique de référence";"FRE1";"Nord-Pas de Calais";
+"REF_AREA";"Zone géographique de référence";"FRD";"Normandie";
+"REF_AREA";"Zone géographique de référence";"FRY2";"Martinique";
+"REF_AREA";"Zone géographique de référence";"FRE";"Nord — Pas-de-Calais — Picardie";
+"REF_AREA";"Zone géographique de référence";"FRE2";"Picardie";
+"REF_AREA";"Zone géographique de référence";"FRY3";"Guyane";
+"REF_AREA";"Zone géographique de référence";"FRF";"Alsace — Champagne — Ardenne — Lorraine";
+"REF_AREA";"Zone géographique de référence";"FRF1";"Alsace";
+"REF_AREA";"Zone géographique de référence";"FRG";"Pays de la Loire";
+"REF_AREA";"Zone géographique de référence";"FRY4";"La Réunion";
+"REF_AREA";"Zone géographique de référence";"FRM";"Corse";
+"REF_AREA";"Zone géographique de référence";"FRF2";"Champagne-Ardenne";
+"REF_AREA";"Zone géographique de référence";"FRH";"Bretagne";
+"REF_AREA";"Zone géographique de référence";"FRI";"Aquitaine — Limousin — Poitou — Charentes";
+"REF_AREA";"Zone géographique de référence";"FRF3";"Lorraine";
+"REF_AREA";"Zone géographique de référence";"FRY5";"Mayotte";
+"REF_AREA";"Zone géographique de référence";"FRY";"Rup Fr — Régions Ultrapériphériques Françaises";
+"REF_AREA";"Zone géographique de référence";"FRJ";"Languedoc — Roussillon — Midi-Pyrénées";
+"REF_AREA";"Zone géographique de référence";"FRG0";"Pays de la Loire";
+"REF_AREA";"Zone géographique de référence";"FRK";"Auvergne — Rhône-Alpes";
+"REF_AREA";"Zone géographique de référence";"FR_HHT";"France métropolitaine et DOM";
+"REF_AREA";"Zone géographique de référence";"FRK1";"Auvergne";
+"REF_AREA";"Zone géographique de référence";"FR10";"Île de France";
+"REF_AREA";"Zone géographique de référence";"FRH0";"Bretagne";
+"REF_AREA";"Zone géographique de référence";"FRL";"Provence-Alpes-Côte D’azur";
+"REF_AREA";"Zone géographique de référence";"FRK2";"Rhône-Alpes";
+"REF_AREA";"Zone géographique de référence";"FRI1";"Aquitaine";
+"REF_AREA";"Zone géographique de référence";"FRB0";"Centre — Val de Loire";
+"REF_AREA";"Zone géographique de référence";"FRI2";"Limousin";
+"REF_AREA";"Zone géographique de référence";"FRL0";"Provence-Alpes-Côte d’Azur";
+"REF_AREA";"Zone géographique de référence";"FRC1";"Bourgogne";
+"REF_AREA";"Zone géographique de référence";"FRI3";"Poitou-Charentes";
+"REF_AREA";"Zone géographique de référence";"FRM0";"Corse";
+"REF_AREA";"Zone géographique de référence";"FRJ1";"Languedoc-Roussillon";
+"REF_AREA";"Zone géographique de référence";"FRY1";"Guadeloupe";
+"REF_AREA";"Zone géographique de référence";"FRJ2";"Midi-Pyrénées";
+"REF_AREA";"Zone géographique de référence";"FRZ";"Extra-Regio NUTS 1";
+"REF_AREA";"Zone géographique de référence";"FRZZ";"Extra-Regio NUTS 2";
+"REF_AREA";"Zone géographique de référence";"FRY10";"Guadeloupe";
+"REF_AREA";"Zone géographique de référence";"FRY20";"Martinique";
+"REF_AREA";"Zone géographique de référence";"FRY30";"Guyane";
+"REF_AREA";"Zone géographique de référence";"FRY40";"La Réunion";
+"REF_AREA";"Zone géographique de référence";"FRY50";"Mayotte";
+"REF_AREA";"Zone géographique de référence";"FR106";"Seine-Saint-Denis";
+"REF_AREA";"Zone géographique de référence";"FR107";"Val-de-Marne";
+"REF_AREA";"Zone géographique de référence";"FR108";"Val-d’Oise";
+"REF_AREA";"Zone géographique de référence";"FRB01";"Cher";
+"REF_AREA";"Zone géographique de référence";"FRD21";"Eure";
+"REF_AREA";"Zone géographique de référence";"FRB02";"Eure-et-Loir";
+"REF_AREA";"Zone géographique de référence";"FRD22";"Seine-Maritime";
+"REF_AREA";"Zone géographique de référence";"FRB03";"Indre";
+"REF_AREA";"Zone géographique de référence";"FRE11";"Nord";
+"REF_AREA";"Zone géographique de référence";"FRB04";"Indre-et-Loire";
+"REF_AREA";"Zone géographique de référence";"FRE12";"Pas-de-Calais";
+"REF_AREA";"Zone géographique de référence";"FRB05";"Loir-et-Cher";
+"REF_AREA";"Zone géographique de référence";"FRE21";"Aisne";
+"REF_AREA";"Zone géographique de référence";"FRG04";"Sarthe";
+"REF_AREA";"Zone géographique de référence";"FR101";"Paris";
+"REF_AREA";"Zone géographique de référence";"FRE22";"Oise";
+"REF_AREA";"Zone géographique de référence";"FRB06";"Loiret";
+"REF_AREA";"Zone géographique de référence";"FRG05";"Vendée";
+"REF_AREA";"Zone géographique de référence";"FRE23";"Somme";
+"REF_AREA";"Zone géographique de référence";"FR102";"Seine-et-Marne";
+"REF_AREA";"Zone géographique de référence";"FRC11";"Côte-d’Or";
+"REF_AREA";"Zone géographique de référence";"FRH01";"Côtes-d’Armor";
+"REF_AREA";"Zone géographique de référence";"FRF11";"Bas-Rhin";
+"REF_AREA";"Zone géographique de référence";"FR103";"Yvelines";
+"REF_AREA";"Zone géographique de référence";"FRC12";"Nièvre";
+"REF_AREA";"Zone géographique de référence";"FRH02";"Finistère";
+"REF_AREA";"Zone géographique de référence";"FRJ13";"Hérault";
+"REF_AREA";"Zone géographique de référence";"FRF12";"Haut-Rhin";
+"REF_AREA";"Zone géographique de référence";"FR104";"Essonne";
+"REF_AREA";"Zone géographique de référence";"FRH03";"Ille-et-Vilaine";
+"REF_AREA";"Zone géographique de référence";"FRC13";"Saône-et-Loire";
+"REF_AREA";"Zone géographique de référence";"FRJ14";"Lozère";
+"REF_AREA";"Zone géographique de référence";"FRF21";"Ardennes";
+"REF_AREA";"Zone géographique de référence";"FRH04";"Morbihan";
+"REF_AREA";"Zone géographique de référence";"FR105";"Hauts-de-Seine";
+"REF_AREA";"Zone géographique de référence";"FRJ15";"Pyrénées-Orientales";
+"REF_AREA";"Zone géographique de référence";"FRC14";"Yonne";
+"REF_AREA";"Zone géographique de référence";"FRF22";"Aube";
+"REF_AREA";"Zone géographique de référence";"FRI11";"Dordogne";
+"REF_AREA";"Zone géographique de référence";"FRJ21";"Ariège";
+"REF_AREA";"Zone géographique de référence";"FRK26";"Rhône";
+"REF_AREA";"Zone géographique de référence";"FRF23";"Marne";
+"REF_AREA";"Zone géographique de référence";"FRC21";"Doubs";
+"REF_AREA";"Zone géographique de référence";"FRI12";"Gironde";
+"REF_AREA";"Zone géographique de référence";"FRK27";"Savoie";
+"REF_AREA";"Zone géographique de référence";"FRJ22";"Aveyron";
+"REF_AREA";"Zone géographique de référence";"FRF24";"Haute-Marne";
+"REF_AREA";"Zone géographique de référence";"FRI13";"Landes";
+"REF_AREA";"Zone géographique de référence";"FRC22";"Jura";
+"REF_AREA";"Zone géographique de référence";"FRK28";"Haute-Savoie";
+"REF_AREA";"Zone géographique de référence";"FRJ23";"Haute-Garonne";
+"REF_AREA";"Zone géographique de référence";"FRF31";"Meurthe-et-Moselle";
+"REF_AREA";"Zone géographique de référence";"FRI14";"Lot-et-Garonne";
+"REF_AREA";"Zone géographique de référence";"FRL01";"Alpes-de-Haute-Provence";
+"REF_AREA";"Zone géographique de référence";"FRJ24";"Gers";
+"REF_AREA";"Zone géographique de référence";"FRC23";"Haute-Saône";
+"REF_AREA";"Zone géographique de référence";"FRF32";"Meuse";
+"REF_AREA";"Zone géographique de référence";"FRI15";"Pyrénées-Atlantiques";
+"REF_AREA";"Zone géographique de référence";"FRJ25";"Lot";
+"REF_AREA";"Zone géographique de référence";"FRF33";"Moselle";
+"REF_AREA";"Zone géographique de référence";"FRI21";"Corrèze";
+"REF_AREA";"Zone géographique de référence";"FRC24";"Territoire de Belfort";
+"REF_AREA";"Zone géographique de référence";"FRJ26";"Hautes-Pyrénées";
+"REF_AREA";"Zone géographique de référence";"FRI22";"Creuse";
+"REF_AREA";"Zone géographique de référence";"FRI23";"Haute-Vienne";
+"REF_AREA";"Zone géographique de référence";"FRJ27";"Tarn";
+"REF_AREA";"Zone géographique de référence";"FRF34";"Vosges";
+"REF_AREA";"Zone géographique de référence";"FRD11";"Calvados";
+"REF_AREA";"Zone géographique de référence";"FRL02";"Hautes-Alpes";
+"REF_AREA";"Zone géographique de référence";"FRI31";"Charente";
+"REF_AREA";"Zone géographique de référence";"FRJ28";"Tarn-et-Garonne";
+"REF_AREA";"Zone géographique de référence";"FRG01";"Loire-Atlantique";
+"REF_AREA";"Zone géographique de référence";"FRD12";"Manche";
+"REF_AREA";"Zone géographique de référence";"FRL03";"Alpes-Maritimes";
+"REF_AREA";"Zone géographique de référence";"FRI32";"Charente-Maritime";
+"REF_AREA";"Zone géographique de référence";"FRK11";"Allier";
+"REF_AREA";"Zone géographique de référence";"FRG02";"Maine-et-Loire";
+"REF_AREA";"Zone géographique de référence";"FRD13";"Orne";
+"REF_AREA";"Zone géographique de référence";"FRL04";"Bouches-du-Rhône";
+"REF_AREA";"Zone géographique de référence";"FRI33";"Deux-Sèvres";
+"REF_AREA";"Zone géographique de référence";"FRG03";"Mayenne";
+"REF_AREA";"Zone géographique de référence";"FRK12";"Cantal";
+"REF_AREA";"Zone géographique de référence";"FRI34";"Vienne";
+"REF_AREA";"Zone géographique de référence";"FRL05";"Var";
+"REF_AREA";"Zone géographique de référence";"FRK13";"Haute-Loire";
+"REF_AREA";"Zone géographique de référence";"FRJ11";"Aude";
+"REF_AREA";"Zone géographique de référence";"FRL06";"Vaucluse";
+"REF_AREA";"Zone géographique de référence";"FRK14";"Puy-de-Dôme";
+"REF_AREA";"Zone géographique de référence";"FRJ12";"Gard";
+"REF_AREA";"Zone géographique de référence";"FRK21";"Ain";
+"REF_AREA";"Zone géographique de référence";"FRM01";"Corse-du-Sud";
+"REF_AREA";"Zone géographique de référence";"FRM02";"Haute-Corse";
+"REF_AREA";"Zone géographique de référence";"FRK22";"Ardèche";
+"REF_AREA";"Zone géographique de référence";"FRK23";"Drôme";
+"REF_AREA";"Zone géographique de référence";"FRK24";"Isère";
+"REF_AREA";"Zone géographique de référence";"FRK25";"Loire";
+"REF_AREA";"Zone géographique de référence";"FRZZZ";"Extra-Regio NUTS 3";
+"REF_AREA";"Zone géographique de référence";"FRV10";"Saint-Martin";
+"REF_AREA";"Zone géographique de référence";"FRY10_V10";"Guadeloupe hors Saint-Martin";
+"STO";"Opération comptable";"P51G";"Formation brute de capital fixe";
+"STO";"Opération comptable";"D1";"Rémunération des salariés";
+"STO";"Opération comptable";"EMP";"Emploi total (peut être en personnes physiques, équivalent temps plein ou en heures travaillées)";
+"STO";"Opération comptable";"SELF";"Emploi des travailleurs indépendants dans les unités de production résidentes (peut être en personnes physiques, équivalent temps plein ou en heures travaillées)";
+"STO";"Opération comptable";"SAL";"Emploi des salariés dans les unités de production résidentes (peut être en personnes physiques, équivalent temps plein ou en heures travaillées)";
+"STO";"Opération comptable";"POP";"Population";
+"STO";"Opération comptable";"B1G";"Valeur ajoutée brute";
+"STO";"Opération comptable";"B1GQ";"Produit intérieur brut";
+"STO";"Opération comptable";"_PIB_HABITANT_RG";"PIB par habitant";
+"STO";"Opération comptable";"_PIB_EMPLOI_RG";"PIB par emploi";
+"STO";"Opération comptable";"P51C";"Consommation de capital fixe";
+"STO";"Opération comptable";"D4";"Revenus de la propriété";
+"STO";"Opération comptable";"D5";"Impôts courants sur le revenu, le patrimoine, etc.";
+"STO";"Opération comptable";"D61";"Cotisations sociales nettes";
+"STO";"Opération comptable";"D62";"Prestations sociales autres que transferts sociaux en nature";
+"STO";"Opération comptable";"D7";"Autres transferts courants";
+"STO";"Opération comptable";"B2A3N";"Excédent d’exploitation/revenu mixte net de CCF";
+"STO";"Opération comptable";"B2G";"Excédent brut d’exploitation";
+"STO";"Opération comptable";"B3G";"Revenu mixte brut";
+"STO";"Opération comptable";"B5N";"Solde des revenus primaires net de CCF";
+"STO";"Opération comptable";"B6G";"Revenu disponible brut";
+"STO";"Opération comptable";"B6N";"Revenu disponible net de CCF";
+"TIME_PERIOD";"Période temporelle";"2024";"2024";
+"TIME_PERIOD";"Période temporelle";"2023";"2023";
+"TIME_PERIOD";"Période temporelle";"2022";"2022";
+"TIME_PERIOD";"Période temporelle";"2021";"2021";
+"TIME_PERIOD";"Période temporelle";"2020";"2020";
+"TIME_PERIOD";"Période temporelle";"2019";"2019";
+"TIME_PERIOD";"Période temporelle";"2018";"2018";
+"TIME_PERIOD";"Période temporelle";"2017";"2017";
+"TIME_PERIOD";"Période temporelle";"2016";"2016";
+"TIME_PERIOD";"Période temporelle";"2015";"2015";
+"TIME_PERIOD";"Période temporelle";"2014";"2014";
+"TIME_PERIOD";"Période temporelle";"2013";"2013";
+"TIME_PERIOD";"Période temporelle";"2012";"2012";
+"TIME_PERIOD";"Période temporelle";"2011";"2011";
+"TIME_PERIOD";"Période temporelle";"2010";"2010";
+"TIME_PERIOD";"Période temporelle";"2009";"2009";
+"TIME_PERIOD";"Période temporelle";"2008";"2008";
+"TIME_PERIOD";"Période temporelle";"2007";"2007";
+"TIME_PERIOD";"Période temporelle";"2006";"2006";
+"TIME_PERIOD";"Période temporelle";"2005";"2005";
+"TIME_PERIOD";"Période temporelle";"2004";"2004";
+"TIME_PERIOD";"Période temporelle";"2003";"2003";
+"TIME_PERIOD";"Période temporelle";"2002";"2002";
+"TIME_PERIOD";"Période temporelle";"2001";"2001";
+"TIME_PERIOD";"Période temporelle";"2000";"2000";
+"TIME_PERIOD";"Période temporelle";"1999";"1999";
+"TIME_PERIOD";"Période temporelle";"1998";"1998";
+"TIME_PERIOD";"Période temporelle";"1997";"1997";
+"TIME_PERIOD";"Période temporelle";"1996";"1996";
+"TIME_PERIOD";"Période temporelle";"1995";"1995";
+"TIME_PERIOD";"Période temporelle";"1994";"1994";
+"TIME_PERIOD";"Période temporelle";"1993";"1993";
+"TIME_PERIOD";"Période temporelle";"1992";"1992";
+"TIME_PERIOD";"Période temporelle";"1991";"1991";
+"TIME_PERIOD";"Période temporelle";"1990";"1990";
+"UNIT_MEASURE";"Unité de mesure";"XDC";"Devise nationale (Euros)";
+"UNIT_MEASURE";"Unité de mesure";"PS";"Personnes";
+"UNIT_MEASURE";"Unité de mesure";"HW";"Heures travaillées";
+"UNIT_MULT";"Quantité d'unités (en puissance de 10)";"6";"Millions";
+"UNIT_MULT";"Quantité d'unités (en puissance de 10)";"3";"Milliers";
+"UNIT_MULT";"Quantité d'unités (en puissance de 10)";"0";"Unités";
+"VALUATION";"Valuation";"S";"Evaluation standard";
+GEO_OBJECT;Niveau géographique;FRANCE;France;
+GEO_OBJECT;Niveau géographique;REG;Région;
+GEO_OBJECT;Niveau géographique;DEP;Département;
+GEO_OBJECT;Niveau géographique;OTHER;Autre type de territoires;
+"GEO";"Géographie";"FR_ALL_ECO";"Territoire économique de la France";"OTHER"
+"GEO";"Géographie";"FM";"France métropolitaine";"FRANCE"
+"GEO";"Géographie";"FM_X_R11";"France métropolitaine hors île de France";"FRANCE"
+"GEO";"Géographie";"F";"France";"FRANCE"
+"GEO";"Géographie";"11";"Île-de-France";"REG"
+"GEO";"Géographie";"24";"Centre-Val de Loire";"REG"
+"GEO";"Géographie";"27";"Bourgogne-Franche-Comté";"REG"
+"GEO";"Géographie";"28";"Normandie";"REG"
+"GEO";"Géographie";"02";"Martinique";"REG"
+"GEO";"Géographie";"32";"Hauts-de-France";"REG"
+"GEO";"Géographie";"03";"Guyane";"REG"
+"GEO";"Géographie";"44";"Grand Est";"REG"
+"GEO";"Géographie";"52";"Pays de la Loire";"REG"
+"GEO";"Géographie";"04";"La Réunion";"REG"
+"GEO";"Géographie";"94";"Corse";"REG"
+"GEO";"Géographie";"53";"Bretagne";"REG"
+"GEO";"Géographie";"75";"Nouvelle-Aquitaine";"REG"
+"GEO";"Géographie";"06";"Mayotte";"REG"
+"GEO";"Géographie";"DOM";"Départements d'Outre-mer";"OTHER"
+"GEO";"Géographie";"76";"Occitanie";"REG"
+"GEO";"Géographie";"84";"Auvergne-Rhône-Alpes";"REG"
+"GEO";"Géographie";"93";"Provence-Alpes-Côte d'Azur";"REG"
+"GEO";"Géographie";"01_COMER978";"Guadeloupe (y compris Saint-Martin)";"OTHER"
+"GEO";"Géographie";"T_EXTRA_REG_FR";"Territoire extrarégional français";"OTHER"
+"GEO";"Géographie";"971";"Guadeloupe";"DEP"
+"GEO";"Géographie";"972";"Martinique";"DEP"
+"GEO";"Géographie";"973";"Guyane";"DEP"
+"GEO";"Géographie";"974";"La Réunion";"DEP"
+"GEO";"Géographie";"976";"Mayotte";"DEP"

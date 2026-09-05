@@ -1092,6 +1092,141 @@ def load_world_row_formulas(values, rm_codes):
     return formulas, index_extra
 
 
+DATA_COMPTES_REGIONAUX = f"{DATA_DIR}/DS_COMPTES_REGIONAUX_data.csv"
+DATA_COMPTES_REGIONAUX_META = f"{DATA_DIR}/DS_COMPTES_REGIONAUX_metadata.csv"
+
+# Comptes régionaux (DS_COMPTES_REGIONAUX) : ventilation d'un poste par
+# région administrative. Restreint aux 14 codes REF_AREA à TROIS
+# caractères — les 13 régions métropolitaines actuelles (FR1, puis
+# FRB..FRM) et FRY ("Rup Fr", DOM regroupés) — vérifié avant d'implémenter :
+# leur somme reconstitue exactement (< 1) le total France (REF_AREA ==
+# "FR_HHT", qui concorde lui-même avec la valeur TEE du même poste) partout
+# où les 15 séries existent. Piège rencontré : GEO_OBJECT n'est PAS un
+# filtre fiable ici — FRY porte GEO_OBJECT == "OTHER" (pas "REG" comme les
+# 13 autres), donc filtrer sur GEO_OBJECT == "REG" exclut FRY et empêche la
+# somme de concorder ; seul REGION_CODES (la liste des REF_AREA) fait foi.
+# Piège n°2 : les codes REF_AREA à QUATRE caractères (FR10, FRC1, FRC2,
+# FRY1..FRY5, ...) sont une autre nomenclature (l'ancien découpage en 22
+# régions avant la réforme de 2016) — les mélanger avec REGION_CODES
+# double-compte (FRC1+FRC2 redouble FRC, etc.) et sous-compte en même temps
+# (FRY1/Guadeloupe n'a pas d'équivalent séparé dans REGION_CODES, il est
+# inclus dans l'agrégat FRY). Et "FRZ" (Extra-Regio, activité hors du
+# territoire français, ex. ambassades) n'entre PAS dans le total France :
+# l'ajouter fait déborder la somme de sa propre valeur.
+REGION_CODES = ["FR1", "FRB", "FRC", "FRD", "FRE", "FRF", "FRG", "FRH", "FRI", "FRJ", "FRK", "FRL", "FRM", "FRY"]
+
+
+def region_pseudo_sto(region, code):
+    return f"REG_{region}_{code}"
+
+
+def add_missing_region_values(values, src_csv=None):
+    # Restreint aux postes déjà chargés comme carte nationale normale
+    # (values['S1'][entry][code]), pour ne jamais faire apparaître une carte
+    # régionale orpheline — même garde que add_missing_world_row_values.
+    src_csv = src_csv or DATA_COMPTES_REGIONAUX
+    region_set = set(REGION_CODES)
+    added = set()
+    max_year = _max_loaded_year(values)
+    with open(src_csv, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["REF_AREA"] not in region_set:
+                continue
+            if row["ACTIVITY"] != "_T":
+                continue
+            if row["UNIT_MEASURE"] != "XDC":
+                continue
+            if row["PRICES"] != "V":
+                continue
+            if row["COUNTERPART_AREA"] != "W0":
+                continue
+            code = row["STO"]
+            entry = row["ACCOUNTING_ENTRY"]
+            if code not in ((values.get("S1") or {}).get(entry) or {}):
+                continue
+            val = row["OBS_VALUE"]
+            if not val:
+                continue
+            year = row["TIME_PERIOD"]
+            if max_year is not None and int(year) > max_year:
+                continue
+            region_code = region_pseudo_sto(row["REF_AREA"], code)
+            bucket = values.setdefault("S1", {}).setdefault(entry, {}).setdefault(region_code, {})
+            if year not in bucket:
+                bucket[year] = round(float(val), 1)
+            added.add(("S1", entry, region_code))
+    return added
+
+
+def add_missing_region_labels(sto_labels, codes, src_csv=None):
+    src_csv = src_csv or DATA_COMPTES_REGIONAUX_META
+    region_labels = {}
+    with open(src_csv, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["COD_VAR"] == "REF_AREA" and row["COD_MOD"] in REGION_CODES:
+                region_labels[row["COD_MOD"]] = row["LIB_MOD"]
+    for code in codes:
+        if code in sto_labels:
+            continue
+        region = next((r for r in REGION_CODES if code.startswith(f"REG_{r}_")), None)
+        if region is None:
+            continue
+        base = code[len(f"REG_{region}_"):]
+        sto_labels[code] = f"{sto_labels.get(base, base)} — {region_labels.get(region, region)}"
+
+
+def load_region_formulas(values, region_codes_added):
+    # <code>(S1) = Σ REG_<région>_<code> pour les 14 régions de REGION_CODES
+    # (voir add_missing_region_values pour le choix précis de ces 14 codes).
+    label = "Ventilation en région"
+    formulas = {}
+    index_extra = {}
+    codes = set()
+    for _, _, c in region_codes_added:
+        for r in REGION_CODES:
+            prefix = f"REG_{r}_"
+            if c.startswith(prefix):
+                codes.add(c[len(prefix):])
+                break
+    for entry in ("B", "C", "D"):
+        by_entry = (values.get("S1") or {}).get(entry) or {}
+        for code in sorted(codes):
+            target_series = by_entry.get(code) or {}
+            if not target_series:
+                continue
+            region_series = [by_entry.get(region_pseudo_sto(r, code)) or {} for r in REGION_CODES]
+            valid_years = []
+            for year, target_val in target_series.items():
+                child_vals = []
+                ok = True
+                for series in region_series:
+                    v = series.get(year)
+                    if v is None:
+                        ok = False
+                        break
+                    child_vals.append(v)
+                if ok and abs(target_val - sum(child_vals)) < 1:
+                    valid_years.append(year)
+            if not valid_years:
+                continue
+            fid = f"{label}|S1-{entry}-{code}"
+            member_dicts = [{"sector": "S1", "entry": entry, "sto": code, "signe": 1}]
+            for r in REGION_CODES:
+                member_dicts.append({"sector": "S1", "entry": entry, "sto": region_pseudo_sto(r, code), "signe": -1})
+            formulas[fid] = {
+                "label": label,
+                "target": member_dicts[0],
+                "members": member_dicts,
+                "years": sorted(valid_years),
+            }
+            for m in member_dicts:
+                idxkey = f"{m['sector']}|{m['entry']}|{m['sto']}"
+                index_extra.setdefault(idxkey, []).append(fid)
+    return formulas, index_extra
+
+
 def main():
     src_data = sys.argv[1] if len(sys.argv) > 1 else f"{DATA_DIR}/DD_CNA_TEE_data.csv"
     labels = load_metadata()
@@ -1190,6 +1325,8 @@ def main():
     add_missing_instrument_labels(labels["STO"])
     world_row_added = add_missing_world_row_values(values, src_data)
     add_missing_world_row_labels(labels["STO"], {c for _, _, c in world_row_added})
+    region_added = add_missing_region_values(values)
+    add_missing_region_labels(labels["STO"], {c for _, _, c in region_added})
     coicop_added = add_missing_coicop_values(values)
     add_missing_coicop_labels(labels["STO"])
     # bilan patrimonial (LE_N) et sa réconciliation avec les flux,
@@ -1244,6 +1381,11 @@ def main():
     for idxkey, ids in world_row_index.items():
         index.setdefault(idxkey, []).extend(ids)
 
+    region_formulas, region_index = load_region_formulas(values, region_added)
+    formulas.update(region_formulas)
+    for idxkey, ids in region_index.items():
+        index.setdefault(idxkey, []).extend(ids)
+
     volume_values = load_volume_values(values)
 
     # source des données affichée en petit sur chaque carte (site/app.js,
@@ -1257,6 +1399,7 @@ def main():
     poste_source = {f"{sec}|{entry}|{sto}": "DD_CNA_SUT" for sec, entry, sto in sut_added}
     poste_source.update({f"{sec}|{entry}|{sto}": "DD_CNA_CONSO_MENAGES_COICOP" for sec, entry, sto in coicop_added})
     poste_source.update({f"{sec}|{entry}|{sto}": "DD_CNA_PATRIMOINE" for sec, entry, sto in patrimoine_added})
+    poste_source.update({f"{sec}|{entry}|{sto}": "DS_COMPTES_REGIONAUX" for sec, entry, sto in region_added})
 
     # secteurs réellement utilisés : au-delà des 6 de SECTEURS, la
     # décomposition en sous-secteur des administrations publiques (voir

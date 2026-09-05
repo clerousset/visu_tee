@@ -187,6 +187,31 @@ certains postes détaillés peuvent être indisponibles.
   `scripts/prepare_data.py::load_world_row_formulas` — vérifiée sur 56
   postes (32 `D*`, 24 `F*`) où les 4 séries existent, à plus de 99,9% des
   années (un seul écart isolé, `D75`, une année sur 76).
+- Quelques postes de l'économie totale (S1) se déplient aussi par région
+  administrative (« Ventilation en région »), depuis un fichier séparé,
+  `data/DS_COMPTES_REGIONAUX_data.csv` : `D1 = REG_FR1_D1 + REG_FRB_D1 +
+  ... + REG_FRY_D1` (13 régions métropolitaines actuelles + `FRY`, « Rup
+  Fr », les DOM regroupés en un seul agrégat). Voir
+  `scripts/prepare_data.py::load_region_formulas` : la même garde que les
+  autres décompositions transverses (concordance < 1 entre la somme des
+  régions et la valeur TEE, sinon le bouton n'apparaît pas pour ce poste)
+  élimine d'elle-même la plupart des candidats — sur les 19
+  poste/position testés (les `D*`/`F*`/soldes disponibles par région dans
+  ce fichier), seuls 6 concordent réellement (`D1` C/D, `D61` D, `D62` C,
+  `P51G` D, `B3G` B) : les autres (`D4`, `D5`, `D7`, `B1G`, `B1GQ`, `B2G`,
+  `B6G`, ...) ont un écart de plusieurs centaines à plus d'un million
+  d'euros — pas un problème d'arrondi, ces postes régionaux ne couvrent
+  vraisemblablement pas exactement le même champ que leur homologue TEE
+  (économie totale) malgré le nom identique. Piège rencontré en préparant
+  les données : `GEO_OBJECT == "REG"` (le filtre le plus naturel) exclut à
+  tort `FRY` (taggé `"OTHER"` dans ce fichier, une incohérence de la
+  source) — c'est la liste explicite des 14 codes `REF_AREA` à trois
+  caractères (`REGION_CODES`) qui fait foi, pas `GEO_OBJECT`. Les codes
+  `REF_AREA` à quatre caractères (`FR10`, `FRC1`, `FRY1`...`FRY5`, ...)
+  sont l'ancien découpage en 22 régions (avant la réforme de 2016) : à ne
+  jamais mélanger avec les 14 ci-dessus (double compte). Et `FRZ`
+  (« Extra-Regio », activité hors du territoire français, ex.
+  ambassades) n'entre dans aucun total national : à exclure aussi.
 - La dépense de consommation des ménages (`P31`) se déplie de la même façon
   par fonction de consommation (nomenclature COICOP — alimentation,
   logement, santé, ...), depuis un fichier séparé,

@@ -331,5 +331,30 @@ assert(emptyBar.segments.length === 0 && emptyBar.total === 0, 'stackedBarGeomet
   }
 }
 
+// 9) "Ventilation en région" (D1(S1) == Σ REG_<région>_D1 sur les 14 régions
+// de scripts/prepare_data.py::REGION_CODES) : vérifie que l'identité existe
+// pour D1, qu'elle a bien 15 membres (la cible + 14 régions), et qu'elle se
+// reconstitue à la valeur de la cible.
+{
+  const regionFid = Object.keys(D.formulas).find(fid => D.formulas[fid].label === 'Ventilation en région' && fid.endsWith('|S1-D-D1'));
+  assert(!!regionFid, 'une identité "Ventilation en région" existe pour D1 (position D)');
+  if (regionFid) {
+    const f = D.formulas[regionFid];
+    assert(f.members.length === 15, `l'identité a 15 membres (cible + 14 régions) (trouvé ${f.members.length})`);
+    assert(f.members.filter(m => m.sto.indexOf('REG_') === 0).length === 14,
+      'les 14 membres régionaux portent un poste préfixé "REG_"');
+
+    const year = f.years[f.years.length - 1];
+    const exp = G.expandFormula(regionFid, 'S1', 'D', 'D1', year);
+    assert(!!exp, `expandFormula résout "${regionFid}" depuis D1`);
+    if (exp) {
+      const reconstructed = exp.others.reduce((acc, m) => acc + (m.value === null ? NaN : m.effectiveSign * m.value), 0);
+      const rootVal = G.getValue('S1', 'D', 'D1', year);
+      const diff = Math.abs(reconstructed - rootVal);
+      assert(diff < 1, `ventilation en région : D1 = Σ(régions) à ${year} (écart=${diff.toFixed(2)})`);
+    }
+  }
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);
