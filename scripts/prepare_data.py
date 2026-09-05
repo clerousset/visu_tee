@@ -975,6 +975,123 @@ def load_volume_values(values):
     return volume_values
 
 
+# "Reste du monde" (COUNTERPART_AREA == "W1") : pour un poste D*/F* de
+# l'économie totale (S1), la part de ses ressources/emplois (position C/D)
+# dont le contrepartiste est le reste du monde plutôt que l'économie
+# nationale elle-même (COUNTERPART_AREA == "W2") — COUNTERPART_AREA == "W0"
+# ("Monde") est la somme des deux (W0 == W2 + W1), c'est la valeur normale
+# de chaque carte D*/F* du site. Préfixe "RM_" (comme "PAT_" pour le
+# patrimoine) : pas de risque de collision, aucun poste STO ne commence
+# ainsi.
+RM_PREFIX = "RM_"
+
+
+def add_missing_world_row_values(values, src_csv=None):
+    # Restreint aux (secteur=S1, poste) déjà chargés comme carte "en niveau"
+    # normale (`values`), sur les deux positions C ET D : c'est le rôle de
+    # `load_world_row_formulas` de vérifier l'identité ensuite, mais on évite
+    # ici de faire apparaître une carte RM_* orpheline (sans le poste W0
+    # correspondant pour lui donner un sens).
+    src_csv = src_csv or f"{DATA_DIR}/DD_CNA_TEE_data.csv"
+    added = set()
+    max_year = _max_loaded_year(values)
+    with open(src_csv, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["REF_SECTOR"] != "S1":
+                continue
+            if row["COUNTERPART_AREA"] != "W1":
+                continue
+            if row["UNIT_MEASURE"] != "XDC":
+                continue
+            if row["CONSOLIDATION"] != "N":
+                continue
+            if row["TRANSFORMATION"] != "N":
+                continue
+            if row["STO"] == "F":
+                code = row["INSTR_ASSET"]
+                if code == "_Z":
+                    continue
+            elif row["INSTR_ASSET"] == "_Z":
+                code = row["STO"]
+            else:
+                continue
+            entry = row["ACCOUNTING_ENTRY"]
+            if code not in ((values.get("S1") or {}).get("C") or {}):
+                continue
+            if code not in ((values.get("S1") or {}).get("D") or {}):
+                continue
+            val = row["OBS_VALUE"]
+            if not val:
+                continue
+            year = row["TIME_PERIOD"]
+            if max_year is not None and int(year) > max_year:
+                continue
+            rm_code = RM_PREFIX + code
+            bucket = values.setdefault("S1", {}).setdefault(entry, {}).setdefault(rm_code, {})
+            if year not in bucket:
+                bucket[year] = round(float(val), 1)
+            added.add(("S1", entry, rm_code))
+    return added
+
+
+def add_missing_world_row_labels(sto_labels, codes):
+    for code in codes:
+        if code in sto_labels or not code.startswith(RM_PREFIX):
+            continue
+        base = code[len(RM_PREFIX):]
+        sto_labels[code] = f"{sto_labels.get(base, base)} — reste du monde"
+
+
+def load_world_row_formulas(values, rm_codes):
+    # Identité de bouclage "Monde" (W0) / "reste du monde" (W1) : comme
+    # W0 == W2 (territoire national) + W1, et que le territoire national
+    # s'équilibre trivialement (ce qui est payé au national est reçu au
+    # national, C(W2) == D(W2)), on a par soustraction :
+    # C(W0) - D(W0) == C(W1) - D(W1), soit C(W0) + D(W1) == D(W0) + C(W1).
+    # Vérifié avant d'implémenter sur les 35 postes D*/F* où les 4 séries
+    # existent : 2438/2439 années concordent (tolérance < 1) tous postes
+    # confondus (D*) et 671/672 (instruments F*) — le seul écart isolé
+    # (D75, 1 année) reste "non vérifié" pour cette année via `years`,
+    # plutôt que d'exclure tout le poste.
+    label = "Lien ressources/emplois avec le reste du monde"
+    formulas = {}
+    index_extra = {}
+    # rm_codes est un set de (secteur,position,poste) : la même carte RM_*
+    # y apparaît une fois par position (C et D), donc dédoublonnée ici pour
+    # ne construire qu'une seule identité par poste (sinon la même pill
+    # apparaîtrait deux fois sur la carte).
+    for code in sorted({rm_code[len(RM_PREFIX):] for _, _, rm_code in rm_codes}):
+        rm_code = RM_PREFIX + code
+        w0c = ((values.get("S1") or {}).get("C") or {}).get(code) or {}
+        w0d = ((values.get("S1") or {}).get("D") or {}).get(code) or {}
+        w1c = ((values.get("S1") or {}).get("C") or {}).get(rm_code) or {}
+        w1d = ((values.get("S1") or {}).get("D") or {}).get(rm_code) or {}
+        years = sorted(set(w0c) & set(w0d) & set(w1c) & set(w1d))
+        if not years:
+            continue
+        valid_years = [y for y in years if abs((w0c[y] + w1d[y]) - (w0d[y] + w1c[y])) < 1]
+        if not valid_years:
+            continue
+        fid = f"{label}|S1-{code}"
+        member_dicts = [
+            {"sector": "S1", "entry": "C", "sto": code, "signe": 1},
+            {"sector": "S1", "entry": "D", "sto": code, "signe": -1},
+            {"sector": "S1", "entry": "C", "sto": rm_code, "signe": -1},
+            {"sector": "S1", "entry": "D", "sto": rm_code, "signe": 1},
+        ]
+        formulas[fid] = {
+            "label": label,
+            "target": member_dicts[0],
+            "members": member_dicts,
+            "years": valid_years,
+        }
+        for m in member_dicts:
+            idxkey = f"{m['sector']}|{m['entry']}|{m['sto']}"
+            index_extra.setdefault(idxkey, []).append(fid)
+    return formulas, index_extra
+
+
 def main():
     src_data = sys.argv[1] if len(sys.argv) > 1 else f"{DATA_DIR}/DD_CNA_TEE_data.csv"
     labels = load_metadata()
@@ -1071,6 +1188,8 @@ def main():
     # (add_missing_coicop_values).
     instrument_added = add_missing_f_instruments(values, src_data)
     add_missing_instrument_labels(labels["STO"])
+    world_row_added = add_missing_world_row_values(values, src_data)
+    add_missing_world_row_labels(labels["STO"], {c for _, _, c in world_row_added})
     coicop_added = add_missing_coicop_values(values)
     add_missing_coicop_labels(labels["STO"])
     # bilan patrimonial (LE_N) et sa réconciliation avec les flux,
@@ -1118,6 +1237,11 @@ def main():
     patrimoine_f_coherence_formulas, patrimoine_f_coherence_index = load_patrimoine_f_coherence_formulas(values)
     formulas.update(patrimoine_f_coherence_formulas)
     for idxkey, ids in patrimoine_f_coherence_index.items():
+        index.setdefault(idxkey, []).extend(ids)
+
+    world_row_formulas, world_row_index = load_world_row_formulas(values, world_row_added)
+    formulas.update(world_row_formulas)
+    for idxkey, ids in world_row_index.items():
         index.setdefault(idxkey, []).extend(ids)
 
     volume_values = load_volume_values(values)

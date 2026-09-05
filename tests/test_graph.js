@@ -296,5 +296,40 @@ assert(emptyBar.segments.length === 0 && emptyBar.total === 0, 'stackedBarGeomet
   }
 }
 
+// 8) "Lien ressources/emplois avec le reste du monde" (D1_C(S1) + RM_D1_D
+// == D1_D(S1) + RM_D1_C, où RM_* est la part "reste du monde"
+// (COUNTERPART_AREA "W1") des ressources/emplois de l'économie totale) :
+// vérifie que l'identité existe, se résout des deux côtés (C et D), et
+// qu'aucun fid n'est dupliqué dans l'index (régression : la même identité
+// avait été indexée deux fois par poste RM_*, une par position C/D chargée,
+// ce qui faisait apparaître deux fois la même pill sur la carte).
+{
+  const worldRowFid = Object.keys(D.formulas).find(fid => D.formulas[fid].label === 'Lien ressources/emplois avec le reste du monde' && fid.endsWith('|S1-D1'));
+  assert(!!worldRowFid, 'une identité "Lien ressources/emplois avec le reste du monde" existe pour D1');
+  if (worldRowFid) {
+    const f = D.formulas[worldRowFid];
+    assert(f.members.length === 4, `l'identité a 4 membres (D1_C, D1_D, RM_D1_C, RM_D1_D) (trouvé ${f.members.length})`);
+    assert(f.members.some(m => m.sto === 'RM_D1' && m.entry === 'C') && f.members.some(m => m.sto === 'RM_D1' && m.entry === 'D'),
+      'les membres "reste du monde" (RM_D1) sont présents en ressource ET en emploi');
+
+    const year = f.years[f.years.length - 1];
+    const exp = G.expandFormula(worldRowFid, 'S1', 'D', 'D1', year);
+    assert(!!exp, `expandFormula résout "${worldRowFid}" depuis D1_D`);
+    if (exp) {
+      const reconstructed = exp.others.reduce((acc, m) => acc + (m.value === null ? NaN : m.effectiveSign * m.value), 0);
+      const rootVal = G.getValue('S1', 'D', 'D1', year);
+      const diff = Math.abs(reconstructed - rootVal);
+      assert(diff < 1, `identité monde/reste du monde : D1_D = Σ(termes) à ${year} (écart=${diff.toFixed(2)})`);
+    }
+
+    // régression : chaque fid n'apparaît qu'une fois par entrée d'index,
+    // même pour un poste RM_* chargé en position C et D
+    const idxKey = 'S1|D|RM_D1';
+    const ids = D.index[idxKey] || [];
+    const occurrences = ids.filter(id => id === worldRowFid).length;
+    assert(occurrences === 1, `l'identité n'apparaît qu'une fois dans l'index de ${idxKey} (trouvé ${occurrences})`);
+  }
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

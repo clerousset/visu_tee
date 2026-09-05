@@ -174,6 +174,19 @@ certains postes détaillés peuvent être indisponibles.
   `INSTR_ASSET` (F1, F51, ...) sont traités comme des postes à part entière
   (aucun autre poste STO ne commence par « F »), validée par
   secteur/position/année comme B9F/B9FX9 ci-dessus.
+- Pour l'économie totale (S1), tout poste `D*`/`F*` a aussi un bouton
+  « Lien ressources/emplois avec le reste du monde », qui déplie sa part
+  vis-à-vis du reste du monde (`COUNTERPART_AREA == "W1"`, chargée à part
+  sous un poste `RM_<code>` — ex. `RM_D1`, `RM_F51` — préfixe choisi comme
+  `PAT_` pour ne collisionner avec aucun poste STO existant). L'identité :
+  `<code>_C(W0) + RM_<code>_D = <code>_D(W0) + RM_<code>_C`, où `W0`
+  (« Monde ») est la valeur normale de la carte. Elle découle de
+  `W0 == W2 (territoire national) + W1` et du fait que le territoire
+  national s'équilibre trivialement (ce qui est payé au national est reçu
+  au national) : par soustraction, `C(W0) - D(W0) == C(W1) - D(W1)`. Voir
+  `scripts/prepare_data.py::load_world_row_formulas` — vérifiée sur 56
+  postes (32 `D*`, 24 `F*`) où les 4 séries existent, à plus de 99,9% des
+  années (un seul écart isolé, `D75`, une année sur 76).
 - La dépense de consommation des ménages (`P31`) se déplie de la même façon
   par fonction de consommation (nomenclature COICOP — alimentation,
   logement, santé, ...), depuis un fichier séparé,
