@@ -197,21 +197,27 @@ certains postes détaillés peuvent être indisponibles.
   régions et la valeur TEE, sinon le bouton n'apparaît pas pour ce poste)
   élimine d'elle-même la plupart des candidats — sur les 19
   poste/position testés (les `D*`/`F*`/soldes disponibles par région dans
-  ce fichier), seuls 6 concordent réellement (`D1` C/D, `D61` D, `D62` C,
-  `P51G` D, `B3G` B) : les autres (`D4`, `D5`, `D7`, `B1G`, `B1GQ`, `B2G`,
-  `B6G`, ...) ont un écart de plusieurs centaines à plus d'un million
-  d'euros — pas un problème d'arrondi, ces postes régionaux ne couvrent
-  vraisemblablement pas exactement le même champ que leur homologue TEE
-  (économie totale) malgré le nom identique. Piège rencontré en préparant
-  les données : `GEO_OBJECT == "REG"` (le filtre le plus naturel) exclut à
+  ce fichier), 8 concordent réellement (`D1` C/D, `D61` D, `D62` C, `P51G`
+  D, `B3G` B, `B1G`/`B1GQ` B) : les autres (`D4`, `D5`, `D7`, `B2G`, `B6G`,
+  ...) ont un écart de plusieurs centaines à plus d'un million d'euros —
+  ces postes régionaux ne couvrent vraisemblablement pas exactement le
+  même champ que leur homologue TEE (économie totale) malgré le nom
+  identique. `B1G`/`B1GQ` avaient d'abord semblé être dans ce cas (écart
+  ~943 M€ sur ~2,2 millions de M€, soit 0,04%, pris pour un arrondi) —
+  jusqu'à découvrir que ce chiffre concorde À L'EURO PRÈS avec `REF_AREA
+  == "FRZ"` ("Extra-Regio", activité hors du territoire français, ex.
+  ambassades) cette année-là : ce n'était pas du bruit, juste un 15e terme
+  manquant. `FRZ` est donc ajouté à l'équation (`EXTRA_REGIO_CODE`) mais
+  seulement pour les postes où cette série existe réellement (`B1G`/`B1GQ`
+  à ce jour) — les 6 autres n'en ont pas besoin (`FRZ` n'a pas leurs
+  postes) et ne sont pas affectés. Piège rencontré en préparant les
+  données : `GEO_OBJECT == "REG"` (le filtre le plus naturel) exclut à
   tort `FRY` (taggé `"OTHER"` dans ce fichier, une incohérence de la
   source) — c'est la liste explicite des 14 codes `REF_AREA` à trois
   caractères (`REGION_CODES`) qui fait foi, pas `GEO_OBJECT`. Les codes
   `REF_AREA` à quatre caractères (`FR10`, `FRC1`, `FRY1`...`FRY5`, ...)
   sont l'ancien découpage en 22 régions (avant la réforme de 2016) : à ne
-  jamais mélanger avec les 14 ci-dessus (double compte). Et `FRZ`
-  (« Extra-Regio », activité hors du territoire français, ex.
-  ambassades) n'entre dans aucun total national : à exclure aussi.
+  jamais mélanger avec les 14 ci-dessus (double compte).
 - La dépense de consommation des ménages (`P31`) se déplie de la même façon
   par fonction de consommation (nomenclature COICOP — alimentation,
   logement, santé, ...), depuis un fichier séparé,

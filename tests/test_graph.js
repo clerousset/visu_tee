@@ -356,5 +356,30 @@ assert(emptyBar.segments.length === 0 && emptyBar.total === 0, 'stackedBarGeomet
   }
 }
 
+// 10) "Ventilation en région" de B1G : l'écart entre le TEE et la simple
+// somme des 14 régions avait d'abord été pris pour un problème d'arrondi,
+// avant de découvrir qu'il concorde exactement avec REF_AREA == "FRZ"
+// (Extra-Regio) — vérifie que ce 15e terme est bien inclus (16 membres,
+// pas 15) et que la reconstitution est exacte.
+{
+  const b1gFid = Object.keys(D.formulas).find(fid => D.formulas[fid].label === 'Ventilation en région' && fid.endsWith('|S1-B-B1G'));
+  assert(!!b1gFid, 'une identité "Ventilation en région" existe pour B1G');
+  if (b1gFid) {
+    const f = D.formulas[b1gFid];
+    assert(f.members.length === 16, `l'identité a 16 membres (cible + 14 régions + FRZ) (trouvé ${f.members.length})`);
+    assert(f.members.some(m => m.sto === 'REG_FRZ_B1G'), 'le membre "Extra-Regio" (REG_FRZ_B1G) est bien inclus');
+
+    const year = f.years[f.years.length - 1];
+    const exp = G.expandFormula(b1gFid, 'S1', 'B', 'B1G', year);
+    assert(!!exp, `expandFormula résout "${b1gFid}" depuis B1G`);
+    if (exp) {
+      const reconstructed = exp.others.reduce((acc, m) => acc + (m.value === null ? NaN : m.effectiveSign * m.value), 0);
+      const rootVal = G.getValue('S1', 'B', 'B1G', year);
+      const diff = Math.abs(reconstructed - rootVal);
+      assert(diff < 1, `ventilation en région (avec Extra-Regio) : B1G = Σ(régions + FRZ) à ${year} (écart=${diff.toFixed(2)})`);
+    }
+  }
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

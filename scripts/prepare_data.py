@@ -1110,10 +1110,22 @@ DATA_COMPTES_REGIONAUX_META = f"{DATA_DIR}/DS_COMPTES_REGIONAUX_metadata.csv"
 # régions avant la réforme de 2016) — les mélanger avec REGION_CODES
 # double-compte (FRC1+FRC2 redouble FRC, etc.) et sous-compte en même temps
 # (FRY1/Guadeloupe n'a pas d'équivalent séparé dans REGION_CODES, il est
-# inclus dans l'agrégat FRY). Et "FRZ" (Extra-Regio, activité hors du
-# territoire français, ex. ambassades) n'entre PAS dans le total France :
-# l'ajouter fait déborder la somme de sa propre valeur.
+# inclus dans l'agrégat FRY).
 REGION_CODES = ["FR1", "FRB", "FRC", "FRD", "FRE", "FRF", "FRG", "FRH", "FRI", "FRJ", "FRK", "FRL", "FRM", "FRY"]
+
+# "Extra-Regio" (activité hors du territoire français, ex. ambassades) :
+# n'est PAS une région, donc pas dans REGION_CODES, mais complète EXACTEMENT
+# l'écart constaté sur B1G/B1GQ entre le TEE et la simple somme des 14
+# régions (écart d'abord pris pour un problème d'arrondi — 942,7 M€ sur
+# 2 212 764,4 M€ en 2021, soit 0,04% — jusqu'à vérifier que ce chiffre
+# concorde À L'EURO PRÈS avec REF_AREA == "FRZ" cette année-là : ce n'est
+# pas du bruit, c'est un terme manquant. N'est ajouté à l'équation que pour
+# les postes où cette série existe réellement (seulement B1G/B1GQ à ce
+# jour) — les autres régions ne sont pas affectées (FRZ n'a pas leurs
+# postes). Contrairement à D1 (où FRZ n'a pas de série et n'a donc jamais
+# lieu d'être ajouté), l'inclure ici ferme l'identité au lieu de la faire
+# déborder.
+EXTRA_REGIO_CODE = "FRZ"
 
 
 def region_pseudo_sto(region, code):
@@ -1125,7 +1137,7 @@ def add_missing_region_values(values, src_csv=None):
     # (values['S1'][entry][code]), pour ne jamais faire apparaître une carte
     # régionale orpheline — même garde que add_missing_world_row_values.
     src_csv = src_csv or DATA_COMPTES_REGIONAUX
-    region_set = set(REGION_CODES)
+    region_set = set(REGION_CODES) | {EXTRA_REGIO_CODE}
     added = set()
     max_year = _max_loaded_year(values)
     with open(src_csv, encoding="utf-8", newline="") as f:
@@ -1161,16 +1173,17 @@ def add_missing_region_values(values, src_csv=None):
 
 def add_missing_region_labels(sto_labels, codes, src_csv=None):
     src_csv = src_csv or DATA_COMPTES_REGIONAUX_META
+    known_areas = REGION_CODES + [EXTRA_REGIO_CODE]
     region_labels = {}
     with open(src_csv, encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f, delimiter=";", quotechar='"')
         for row in reader:
-            if row["COD_VAR"] == "REF_AREA" and row["COD_MOD"] in REGION_CODES:
+            if row["COD_VAR"] == "REF_AREA" and row["COD_MOD"] in known_areas:
                 region_labels[row["COD_MOD"]] = row["LIB_MOD"]
     for code in codes:
         if code in sto_labels:
             continue
-        region = next((r for r in REGION_CODES if code.startswith(f"REG_{r}_")), None)
+        region = next((r for r in known_areas if code.startswith(f"REG_{r}_")), None)
         if region is None:
             continue
         base = code[len(f"REG_{region}_"):]
@@ -1179,13 +1192,17 @@ def add_missing_region_labels(sto_labels, codes, src_csv=None):
 
 def load_region_formulas(values, region_codes_added):
     # <code>(S1) = Σ REG_<région>_<code> pour les 14 régions de REGION_CODES
-    # (voir add_missing_region_values pour le choix précis de ces 14 codes).
+    # (voir add_missing_region_values pour le choix précis de ces 14 codes),
+    # plus REG_FRZ_<code> (EXTRA_REGIO_CODE) quand cette série existe pour ce
+    # poste — seul B1G/B1GQ à ce jour, voir le commentaire sur
+    # EXTRA_REGIO_CODE.
     label = "Ventilation en région"
     formulas = {}
     index_extra = {}
+    known_areas = REGION_CODES + [EXTRA_REGIO_CODE]
     codes = set()
     for _, _, c in region_codes_added:
-        for r in REGION_CODES:
+        for r in known_areas:
             prefix = f"REG_{r}_"
             if c.startswith(prefix):
                 codes.add(c[len(prefix):])
@@ -1196,7 +1213,8 @@ def load_region_formulas(values, region_codes_added):
             target_series = by_entry.get(code) or {}
             if not target_series:
                 continue
-            region_series = [by_entry.get(region_pseudo_sto(r, code)) or {} for r in REGION_CODES]
+            areas = REGION_CODES + ([EXTRA_REGIO_CODE] if by_entry.get(region_pseudo_sto(EXTRA_REGIO_CODE, code)) else [])
+            region_series = [by_entry.get(region_pseudo_sto(r, code)) or {} for r in areas]
             valid_years = []
             for year, target_val in target_series.items():
                 child_vals = []
@@ -1213,7 +1231,7 @@ def load_region_formulas(values, region_codes_added):
                 continue
             fid = f"{label}|S1-{entry}-{code}"
             member_dicts = [{"sector": "S1", "entry": entry, "sto": code, "signe": 1}]
-            for r in REGION_CODES:
+            for r in areas:
                 member_dicts.append({"sector": "S1", "entry": entry, "sto": region_pseudo_sto(r, code), "signe": -1})
             formulas[fid] = {
                 "label": label,
