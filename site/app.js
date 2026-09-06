@@ -504,7 +504,7 @@
         key: 'input',
         type: 'text',
         className: 'poste-search-input',
-        placeholder: 'Rechercher un agrégat (ex. PIB, D1, valeur ajoutée, impôts...)',
+        placeholder: 'Rechercher un agrégat (ex. PIB, salaires, valeur ajoutée, impôts...)',
         value: query,
         onChange: (e) => setQuery(e.target.value),
       }),
