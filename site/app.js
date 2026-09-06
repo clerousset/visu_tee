@@ -666,6 +666,7 @@
           h('label', { key: 'l1', className: 'inline-label' }, [
             'Poste de départ' + (rootSector !== D.seed.sector ? ' (' + G.sectorLabel(rootSector) + ')' : '') + ' ',
             h('select', {
+              className: 'poste-select',
               value: rootEntry + '|' + sto,
               onChange: (e) => {
                 const [entry, code] = e.target.value.split('|');

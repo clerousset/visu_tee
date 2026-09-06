@@ -153,6 +153,9 @@ select {
   font-size: 13px;
   max-width: 320px;
 }
+.poste-select {
+  max-width: 520px;
+}
 
 .layout {
   display: flex;
