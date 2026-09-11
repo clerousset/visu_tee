@@ -44,10 +44,10 @@ vérifier la connexion et recharger la page.
   D1 — de l'économie totale, année la plus récente). Poste de départ et
   année sont modifiables en haut de page ; les autres secteurs restent
   accessibles en dépliant les identités de ventilation par secteur.
-- Une barre de recherche en haut de page propose des agrégats (tous
-  secteurs confondus) au fil de la frappe, insensible aux accents/à la
-  casse (code, libellé, secteur ou position) ; cliquer une suggestion
-  re-part directement sur cette carte, comme le bouton « repartir d'ici ».
+- Une barre de recherche en haut de page propose des agrégats de
+  l'économie totale (S1) au fil de la frappe, insensible aux accents/à la
+  casse (code, libellé ou position) ; cliquer une suggestion re-part
+  directement sur cette carte, comme le bouton « repartir d'ici ».
 - Un onglet « Formules » (à côté d'« Explorer ») liste tous les types
   d'identités comptables connus du site (`app.js::FORMULA_GROUPS`,
   regroupées par libellé, ventilations d'abord), chacun repliable ; chaque

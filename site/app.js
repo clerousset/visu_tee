@@ -86,16 +86,17 @@
     return options;
   }
 
-  // tous les agrégats proposables (tous secteurs confondus), pour la barre
-  // de recherche en haut de page : calculé une seule fois, D.values ne
-  // change pas en cours d'exécution
+  // tous les agrégats proposables pour la barre de recherche en haut de
+  // page : seulement l'économie totale (S1), pas les autres secteurs — les
+  // agrégats les plus recherchés (PIB, salaires...) sont des concepts
+  // d'économie totale, et proposer les 6 secteurs pour chaque poste noyait
+  // les résultats pertinents. Calculé une seule fois, D.values ne change
+  // pas en cours d'exécution
   const ALL_POSTE_OPTIONS = (() => {
     const options = [];
-    (D.secteurs || []).forEach(sector => {
-      const bySector = D.values[sector] || {};
-      ROOT_ENTRY_ORDER.forEach(entry => {
-        Object.keys(bySector[entry] || {}).sort().forEach(sto => options.push({ sector, entry, sto }));
-      });
+    const bySector = D.values.S1 || {};
+    ROOT_ENTRY_ORDER.forEach(entry => {
+      Object.keys(bySector[entry] || {}).sort().forEach(sto => options.push({ sector: 'S1', entry, sto }));
     });
     return options;
   })();
@@ -490,8 +491,8 @@
     ]);
   }
 
-  // barre de recherche (tous secteurs confondus) proposant des agrégats au
-  // fil de la frappe ; sélectionner une suggestion re-racine l'application
+  // barre de recherche (économie totale uniquement, voir ALL_POSTE_OPTIONS)
+  // proposant des agrégats au fil de la frappe ; sélectionner une suggestion re-racine l'application
   // dessus (même effet que "repartir d'ici", voir onSelect) et vide la
   // recherche pour la suivante — ce n'est pas un affichage persistant du
   // poste courant, juste un outil de saut rapide
