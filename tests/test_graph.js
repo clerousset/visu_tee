@@ -381,5 +381,51 @@ assert(emptyBar.segments.length === 0 && emptyBar.total === 0, 'stackedBarGeomet
   }
 }
 
+// 11) "Lien valeur ajoutée/rémunérations et excédent brut d'exploitation"
+// vérifiée aussi section NACE par section (pas seulement l'agrégat "_T") :
+// B1G[activité] = B2A3G[activité] + D1[activité] + D29[activité] +
+// D39[activité] — voir scripts/sut_formulas.py::LIEN_SUT_FORMULAS_ACTIVITE.
+// Contrairement à "Ventilation en activité", la cible porte elle-même
+// `activity` (ce n'est pas la décomposition d'UN poste, mais un lien entre
+// plusieurs, tous à la même section) : vérifie que l'identité existe pour
+// une section où les 5 séries co-existent (ex. "A"), que ses 5 membres
+// portent tous cette même activité, et que expandFormula la résout depuis
+// la cible B1G@activité comme depuis un membre (D1@activité).
+{
+  const activiteLienFid = Object.keys(D.formulas).find(fid => {
+    const f = D.formulas[fid];
+    return f.label === "Lien valeur ajoutée/rémunérations et excédent brut d'exploitation" && fid.endsWith('|S1-A');
+  });
+  assert(!!activiteLienFid, 'une identité "Lien valeur ajoutée/rémunérations..." existe pour la section A (activité)');
+  if (activiteLienFid) {
+    const f = D.formulas[activiteLienFid];
+    assert(f.members.length === 5, `l'identité a 5 membres (B1G, B2A3G, D1, D29, D39) (trouvé ${f.members.length})`);
+    assert(f.members.every(m => m.activity === 'A'), 'les 5 membres portent tous l\'activité "A"');
+    assert(f.target.sto === 'B1G', `la cible de l'identité est B1G (trouvé ${f.target.sto})`);
+
+    const year = f.years[f.years.length - 1];
+    const rootVal = G.getValue('S1', 'B', 'B1G', year, 'A');
+    assert(rootVal !== null, `G.getValue avec activity renvoie une valeur pour B1G/S1/${year}/A`);
+
+    const exp = G.expandFormula(activiteLienFid, 'S1', 'B', 'B1G', year, 'A');
+    assert(!!exp, `expandFormula résout "${activiteLienFid}" depuis B1G@A`);
+    if (exp) {
+      const reconstructed = exp.others.reduce((acc, m) => acc + (m.value === null ? NaN : m.effectiveSign * m.value), 0);
+      const diff = Math.abs(reconstructed - rootVal);
+      assert(diff < 1, `identité par activité : B1G[A] = Σ(B2A3G,D1,D29,D39)[A] à ${year} (écart=${diff.toFixed(2)})`);
+    }
+
+    // se résout aussi depuis un membre autre que la cible (D1@A), comme
+    // n'importe quel "Lien" (contrairement à une "Ventilation", qui ne se
+    // propose que depuis sa cible)
+    const expFromD1 = G.expandFormula(activiteLienFid, 'S1', 'D', 'D1', year, 'A');
+    assert(!!expFromD1, `expandFormula résout aussi "${activiteLienFid}" depuis D1@A (comme n'importe quel "Lien")`);
+
+    const formulasOnD1Activite = G.getFormulasFor('S1', 'D', 'D1', year, 'A');
+    assert(formulasOnD1Activite.some(x => x.id === activiteLienFid),
+      'la carte D1@A propose bien le pill de cette identité (les "Lien" se proposent depuis tous leurs membres)');
+  }
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

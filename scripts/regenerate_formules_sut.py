@@ -15,11 +15,7 @@ import csv
 import itertools
 
 from prepare_data import load_sut
-from sut_formulas import LIEN_SUT_FORMULAS
-
-# sections NACE Rev.2 (A à U) : le niveau le plus agrégé de la nomenclature
-# d'activité, hors code "_T" (total) lui-même
-LETTERS_NACE = set("ABCDEFGHIJKLMNOPQRSTU")
+from sut_formulas import LETTERS_NACE, LIEN_SUT_FORMULAS, LIEN_SUT_FORMULAS_ACTIVITE
 
 OUT = "data/formules_SUT.csv"
 
@@ -124,11 +120,66 @@ def build_lien_sut(rows, label, target, members):
     return out
 
 
+def build_lien_sut_activite(rows, label, target, members):
+    # même principe que build_lien_sut, mais à l'échelle d'une section NACE
+    # (ACTIVITY dans LETTERS_NACE) plutôt qu'au niveau agrégé "_T" : voir
+    # LIEN_SUT_FORMULAS_ACTIVITE (sut_formulas.py). Contrairement à
+    # build_ss_activite, la cible porte elle aussi `ACTIVITY` (ce n'est pas
+    # une décomposition d'un seul poste, mais une identité entre plusieurs
+    # postes, tous à la même section). PRODUCT reste "_T" (l'identité ne
+    # porte pas sur un produit particulier).
+    by_key = {}
+    for r in rows:
+        if r["ACTIVITY"] not in LETTERS_NACE or r["PRODUCT"] != "_T":
+            continue
+        k = (r["REF_SECTOR"], r["TIME_PERIOD"], r["ACTIVITY"])
+        by_key.setdefault(k, {})[(r["ACCOUNTING_ENTRY"], r["STO"])] = r["OBS_VALUE"]
+
+    get_id = new_id_sequence()
+    out = []
+    for k, vals in by_key.items():
+        target_val = vals.get(target)
+        if target_val is None:
+            continue
+        member_vals = []
+        for (entry, sto, signe_affiche) in members:
+            v = vals.get((entry, sto))
+            if v is None:
+                member_vals = None
+                break
+            member_vals.append(signe_affiche * v)
+        if member_vals is None:
+            continue
+        if abs(target_val - sum(member_vals)) >= 1:
+            continue
+        sector, year, activity = k
+        fid = get_id(k)
+        out.append({
+            "REF_SECTOR": sector, "TIME_PERIOD": year, "ACCOUNTING_ENTRY": target[0],
+            "STO": target[1], "PRODUCT": "_T", "ACTIVITY": activity,
+            "signe": 1, "formule": label, "id_formule": fid,
+        })
+        for (entry, sto, signe_affiche) in members:
+            out.append({
+                "REF_SECTOR": sector, "TIME_PERIOD": year, "ACCOUNTING_ENTRY": entry,
+                "STO": sto, "PRODUCT": "_T", "ACTIVITY": activity,
+                "signe": -signe_affiche, "formule": label, "id_formule": fid,
+            })
+    return out
+
+
 def main():
     rows = load_sut()
+    # certains postes de LIEN_SUT_FORMULAS_ACTIVITE (D29, D39) ne publient
+    # "W0" par section NACE, seulement "W2" (voir load_sut) : rows_activite
+    # élargit donc le filtre, séparément de `rows` (qui reste W0 seul pour
+    # build_ss_activite/build_lien_sut, inchangés).
+    rows_activite = load_sut(counterpart_areas=("W0", "W2"))
     formula_rows = build_ss_activite(rows)
     for label, target, members in LIEN_SUT_FORMULAS:
         formula_rows += build_lien_sut(rows, label, target, members)
+    for label, target, members in LIEN_SUT_FORMULAS_ACTIVITE:
+        formula_rows += build_lien_sut_activite(rows_activite, label, target, members)
 
     with open(OUT, "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f, quoting=csv.QUOTE_NONNUMERIC)

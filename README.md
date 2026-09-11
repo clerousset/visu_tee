@@ -149,7 +149,13 @@ certains postes détaillés peuvent être indisponibles.
   comme des boutons de définition ordinaires, y compris pour deux postes qui
   n'existent que dans le TES (`TSPP`, total des emplois en prix
   d'acquisition ; `TSBP`, en prix de base — ce dernier n'a en pratique
-  jamais de décomposition qui concorde avec les données).
+  jamais de décomposition qui concorde avec les données). Le lien « valeur
+  ajoutée/rémunérations et excédent brut d'exploitation » (`B1G = B2A3G +
+  D1 + D29 + D39`) est en plus revérifié section NACE par section NACE
+  (voir `scripts/sut_formulas.py::LIEN_SUT_FORMULAS_ACTIVITE`) : une carte
+  « valeur ajoutée pour l'activité A » (atteinte via « Ventilation en
+  activité ») propose donc aussi ce bouton, avec des cartes enfants elles
+  aussi propres à cette activité.
 - Le TEE lui-même fournit une identité du même genre, purement interne cette
   fois : `B9FX9 = B9F - B9`, l'écart statistique entre la capacité/besoin de
   financement mesuré par les comptes financiers (B9F) et non-financiers

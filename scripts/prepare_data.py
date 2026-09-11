@@ -21,7 +21,7 @@ import json
 import os
 import sys
 
-from sut_formulas import LIEN_SUT_FORMULAS
+from sut_formulas import LETTERS_NACE, LIEN_SUT_FORMULAS, LIEN_SUT_FORMULAS_ACTIVITE
 
 DATA_DIR = "data"
 OUT_PATH = "site/data/tee_graph.js"
@@ -172,7 +172,7 @@ def load_values(src_csv, needed_keys):
     return values
 
 
-def load_sut(src_csv=None):
+def load_sut(src_csv=None, counterpart_areas=("W0",)):
     # Tableau des ressources et emplois (SUT) : même traitement que
     # load_values() (filtre + sélection de colonnes) pour un fichier source
     # aux dimensions différentes (ACTIVITY x PRODUCT, classification CPA, en
@@ -181,6 +181,16 @@ def load_sut(src_csv=None):
     # équivalent (valeur courante, par opposition aux volumes chaînés "L").
     # Ne construit pour l'instant qu'une liste de lignes filtrées et
     # dédupliquées : pas encore intégré à la sortie site/data/tee_graph.js.
+    #
+    # `counterpart_areas` (par défaut "W0" seul, comme partout ailleurs) :
+    # certains postes (ex. D29, D39 — voir LIEN_SUT_FORMULAS_ACTIVITE dans
+    # sut_formulas.py) ne publient PAS "W0" par section NACE, seulement "W2"
+    # (territoire national) ; d'autres (ex. B2A3G) c'est l'inverse. Élargir à
+    # ("W0", "W2") pour ces cas ne risque pas de mélanger des valeurs
+    # incohérentes : vérifié avant d'implémenter, quand les deux existent
+    # pour un même poste elles sont identiques à l'euro près (pas de
+    # composante "reste du monde" pour ces concepts), donc le déduplicateur
+    # `seen` ci-dessous absorbe le doublon sans distinguer laquelle a gagné.
     src_csv = src_csv or f"{DATA_DIR}/DD_CNA_SUT_data.csv"
     cols = ["REF_SECTOR", "ACCOUNTING_ENTRY", "STO", "ACTIVITY", "PRODUCT", "TIME_PERIOD", "OBS_VALUE"]
     rows = []
@@ -190,7 +200,7 @@ def load_sut(src_csv=None):
         for r in reader:
             if r["UNIT_MEASURE"] != "XDC":
                 continue
-            if r["COUNTERPART_AREA"] != "W0":
+            if r["COUNTERPART_AREA"] not in counterpart_areas:
                 continue
             if r["INSTR_ASSET"] != "_Z":
                 continue
@@ -316,6 +326,75 @@ def load_activite_formulas(tee_values):
         }
 
     return formulas, activity_values
+
+
+def load_lien_sut_activite_formulas(activity_values):
+    # Comme load_generic_formulas (LIEN_SUT_FORMULAS), mais à l'échelle
+    # d'une section NACE (ACTIVITY dans LETTERS_NACE) plutôt qu'au niveau
+    # agrégé "_T" — voir LIEN_SUT_FORMULAS_ACTIVITE (sut_formulas.py) : au
+    # lieu de décomposer UN poste en ses sections ("Ventilation en
+    # activité"), ceci relie plusieurs postes SUT ENTRE EUX à une même
+    # section (B1G = B2A3G + D1 + D29 + D39, valable section par section).
+    # Le membre cible porte donc lui aussi `activity` (contrairement à
+    # "Ventilation en activité", où la cible reste le poste TEE ordinaire) :
+    # revalidée ici directement sur les données SUT brutes, comme
+    # load_generic_formulas, plutôt que réutiliser data/formules_SUT.csv.
+    # Complète aussi `activity_values` pour les postes qui n'ont sinon
+    # aucune autre source d'activité (B2A3G, D29, D39 : ne sont la cible
+    # d'aucune "Ventilation en activité" existante).
+    #
+    # D29/D39 ne publient "W0" par section NACE (contrairement à leur
+    # agrégat "_T") : voir load_sut, counterpart_areas.
+    sut_rows = load_sut(counterpart_areas=("W0", "W2"))
+    lookup = {}  # (sector,entry,sto,activity,year) -> value
+    for r in sut_rows:
+        if r["PRODUCT"] != "_T" or r["ACTIVITY"] not in LETTERS_NACE:
+            continue
+        lookup[(r["REF_SECTOR"], r["ACCOUNTING_ENTRY"], r["STO"], r["ACTIVITY"], r["TIME_PERIOD"])] = r["OBS_VALUE"]
+
+    formulas = {}
+    index_extra = {}
+    for label, target, members in LIEN_SUT_FORMULAS_ACTIVITE:
+        t_entry, t_sto = target
+        target_by_sector_activity = {}
+        for (sector, entry, sto, activity, year), v in lookup.items():
+            if entry == t_entry and sto == t_sto:
+                target_by_sector_activity.setdefault((sector, activity), {})[year] = v
+
+        for (sector, activity), target_series in target_by_sector_activity.items():
+            valid_years = []
+            for year, target_val in target_series.items():
+                total = 0.0
+                ok = True
+                for (entry, sto, signe_affiche) in members:
+                    v = lookup.get((sector, entry, sto, activity, year))
+                    if v is None:
+                        ok = False
+                        break
+                    total += signe_affiche * v
+                if ok and abs(target_val - total) < 1:
+                    valid_years.append(year)
+            if not valid_years:
+                continue
+            fid = f"{label}|{sector}-{activity}"
+            member_dicts = [{"sector": sector, "entry": t_entry, "sto": t_sto, "activity": activity, "signe": 1}]
+            for (entry, sto, signe_affiche) in members:
+                member_dicts.append({"sector": sector, "entry": entry, "sto": sto, "activity": activity, "signe": -signe_affiche})
+            formulas[fid] = {
+                "label": label,
+                "target": member_dicts[0],
+                "members": member_dicts,
+                "years": sorted(valid_years),
+            }
+            for m in member_dicts:
+                idxkey = f"{m['sector']}|{m['entry']}|{m['sto']}@{m['activity']}"
+                index_extra.setdefault(idxkey, []).append(fid)
+                by_activity = activity_values.setdefault(sector, {}).setdefault(m["entry"], {}).setdefault(m["sto"], {}).setdefault(activity, {})
+                for year in valid_years:
+                    v = lookup.get((sector, m["entry"], m["sto"], activity, year))
+                    if v is not None and year not in by_activity:
+                        by_activity[year] = v
+    return formulas, index_extra
 
 
 def _max_loaded_year(values):
@@ -1319,6 +1398,16 @@ def main():
             idxkey = f"{m['sector']}|{m['entry']}|{m['sto']}"
             index.setdefault(idxkey, []).append(fid)
 
+    # identités reliant plusieurs postes SUT entre eux à une même section
+    # NACE (ex. valeur ajoutée/rémunérations et excédent brut d'exploitation) :
+    # contrairement à "Ventilation en activité" ci-dessus, la cible porte
+    # elle-même `activity`, donc TOUS ses membres (cible incluse) sont
+    # indexés normalement (voir load_lien_sut_activite_formulas).
+    lien_activite_formulas, lien_activite_index = load_lien_sut_activite_formulas(activity_values)
+    formulas.update(lien_activite_formulas)
+    for idxkey, ids in lien_activite_index.items():
+        index.setdefault(idxkey, []).extend(ids)
+
     # identités générales du SUT (voir sut_formulas.py) : quelques postes
     # (TSPP, TSBP) n'existent pas dans le TEE, on les complète depuis le SUT
     # avant de revalider/câbler ces identités.
@@ -1460,8 +1549,10 @@ def main():
     n_formulas = len(formulas)
     n_activite = len(activite_formulas)
     n_lien_sut = len(lien_formulas)
+    n_lien_sut_activite = len(lien_activite_formulas)
     print(f"OK — {OUT_PATH} généré : {n_formulas} identités comptables "
-          f"(dont {n_activite} ventilations par activité, {n_lien_sut} identités SUT générales), "
+          f"(dont {n_activite} ventilations par activité, {n_lien_sut} identités SUT générales, "
+          f"{n_lien_sut_activite} identités SUT générales par activité), "
           f"{n_keys} postes (secteur x poste x position) suivis.")
 
 
