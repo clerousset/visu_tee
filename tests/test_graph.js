@@ -427,5 +427,32 @@ assert(emptyBar.segments.length === 0 && emptyBar.total === 0, 'stackedBarGeomet
   }
 }
 
+// 12) P7 = P71 + P72 (importations de biens et services = importations de
+// biens + de services), économie totale, en ressource : absente de
+// formules_TEE.csv (P71/P72 pas encore publiés pour 2024, l'année de
+// référence du script R) — voir scripts/prepare_data.py::P7_FORMULA,
+// revalidée par load_generic_formulas comme B9F/B9FX9. Vérifie que
+// l'identité existe, se résout, et n'est pas marquée vérifiée pour 2024
+// (année où P71/P72 manquent).
+{
+  const p7Fid = Object.keys(D.formulas).find(fid => D.formulas[fid].label.indexOf('Décomposition des importations') === 0);
+  assert(!!p7Fid, 'une identité "Décomposition des importations..." existe pour P7');
+  if (p7Fid) {
+    const f = D.formulas[p7Fid];
+    assert(f.members.length === 3, `l'identité a 3 membres (P7, P71, P72) (trouvé ${f.members.length})`);
+    assert(!f.years.includes('2024'), 'l\'identité n\'est pas valide pour 2024 (P71/P72 pas encore publiés)');
+
+    const year = f.years[f.years.length - 1];
+    const exp = G.expandFormula(p7Fid, 'S1', 'C', 'P7', year);
+    assert(!!exp, `expandFormula résout "${p7Fid}" depuis P7`);
+    if (exp) {
+      const reconstructed = exp.others.reduce((acc, m) => acc + (m.value === null ? NaN : m.effectiveSign * m.value), 0);
+      const rootVal = G.getValue('S1', 'C', 'P7', year);
+      const diff = Math.abs(reconstructed - rootVal);
+      assert(diff < 1, `P7 = P71 + P72 à ${year} (écart=${diff.toFixed(2)})`);
+    }
+  }
+}
+
 console.log(failures === 0 ? '\nTous les contrôles sont passés.' : `\n${failures} contrôle(s) en échec.`);
 process.exit(failures === 0 ? 0 : 1);

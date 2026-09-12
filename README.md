@@ -170,6 +170,14 @@ certains postes détaillés peuvent être indisponibles.
   standard `INSTR_ASSET == "_Z"` comme les autres postes, son total porte le
   code `INSTR_ASSET == "F"` lui-même, chargé séparément par
   `add_missing_f_instruments`).
+- Une autre identité vraie par construction, plus simple (`P7_FORMULA`) :
+  `P7 = P71 + P72` (importations de biens et services = importations de
+  biens + de services), économie totale, en ressource. Absente de
+  `formules_TEE.csv` car `P71`/`P72` ne sont pas encore publiés pour 2024
+  (l'année de référence du script R) — revalidée directement sur les
+  années disponibles comme B9F/B9FX9, d'où une identité « non vérifiée »
+  pour 2024 (seul `P7` y est disponible) mais vérifiée pour toutes les
+  autres années (1949-2023).
 - Ce même poste `F` se déplie aussi par classe d'instrument financier
   (numéraire et dépôts, titres de créance, crédits, actions, ...), à
   n'importe quel niveau d'emboîtement — ex. `F = F1+...+F8`, puis

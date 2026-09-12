@@ -475,6 +475,17 @@ B9F_FORMULA = [
         [("D", "F", 1), ("C", "F", -1)]),
 ]
 
+# P7 = P71 + P72 (importations de biens et services = importations de biens
+# + importations de services), économie totale (S1), en ressource (C) —
+# vérifié à 100% des années où les 3 séries existent (75/75) : P71/P72 ne
+# sont pas encore publiés pour 2024 (seul P7 y figure), d'où
+# load_generic_formulas plutôt qu'un bloc figé à 2024 comme dans
+# regenerate_formules.py (qui manquerait donc cette identité).
+P7_FORMULA = [
+    ("Décomposition des importations de biens et services (prix d'acquisition)", ("C", "P7"),
+        [("C", "P71", 1), ("C", "P72", 1)]),
+]
+
 
 def add_missing_f_instruments(values, src_csv):
     # F (Flux d'actifs ou passifs) et toutes ses classes d'instruments —
@@ -1382,6 +1393,11 @@ def main():
     # poste ressource/emploi/solde, mais un écart de mesure.
     needed_keys |= {(sector, "B", "B9F") for sector in SECTEURS}
     needed_keys |= {(sector, "_Z", "B9FX9") for sector in SECTEURS}
+    # et pour P71/P72 (voir P7_FORMULA) : absents de formules_TEE.csv car
+    # non publiés pour 2024 (l'année de référence du script R) — P7 lui,
+    # déjà couvert via LIEN_SUT_FORMULAS ci-dessus.
+    needed_keys |= {(sector, "C", "P71") for sector in SECTEURS}
+    needed_keys |= {(sector, "C", "P72") for sector in SECTEURS}
 
     values = load_values(src_data, needed_keys)
 
@@ -1449,7 +1465,7 @@ def main():
     patrimoine_codes = {c for _, _, c in patrimoine_added}
     add_missing_patrimoine_labels(labels["STO"], patrimoine_codes)
     tee_generic_formulas, tee_generic_index = load_generic_formulas(
-        values, B9FX9_FORMULA + B9F_FORMULA + P31_COICOP_TOP_FORMULA)
+        values, B9FX9_FORMULA + B9F_FORMULA + P31_COICOP_TOP_FORMULA + P7_FORMULA)
     formulas.update(tee_generic_formulas)
     for idxkey, ids in tee_generic_index.items():
         index.setdefault(idxkey, []).extend(ids)
