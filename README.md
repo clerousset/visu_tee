@@ -170,14 +170,22 @@ certains postes détaillés peuvent être indisponibles.
   standard `INSTR_ASSET == "_Z"` comme les autres postes, son total porte le
   code `INSTR_ASSET == "F"` lui-même, chargé séparément par
   `add_missing_f_instruments`).
-- Une autre identité vraie par construction, plus simple (`P7_FORMULA`) :
-  `P7 = P71 + P72` (importations de biens et services = importations de
-  biens + de services), économie totale, en ressource. Absente de
-  `formules_TEE.csv` car `P71`/`P72` ne sont pas encore publiés pour 2024
-  (l'année de référence du script R) — revalidée directement sur les
-  années disponibles comme B9F/B9FX9, d'où une identité « non vérifiée »
-  pour 2024 (seul `P7` y est disponible) mais vérifiée pour toutes les
-  autres années (1949-2023).
+- « Ventilation en sous-catégorie » (ex. `D4 = D41+...+D45`, puis
+  `D42 = D421+D422` — le parent d'un poste est son propre code privé de son
+  dernier caractère) n'est PAS calculée à partir de `formules_TEE.csv`
+  (contrairement à « Ventilation en sous-secteur ») : `regenerate_formules.py`
+  ne voyant que l'instantané de l'année 2024, il ratait silencieusement
+  toute décomposition dont les enfants ne sont pas TOUS publiés précisément
+  cette année-là (ex. `P7 = P71 + P72`, `P71`/`P72` publiés jusqu'en 2023
+  seulement ; plusieurs sous-postes des administrations publiques — S13 —
+  discontinués depuis, ou au contraire apparus après 2024). Voir
+  `scripts/prepare_data.py::load_ss_ventil_formulas`, qui relit
+  `DD_CNA_TEE_data.csv` directement (comme `add_missing_f_instruments`) et
+  revalide cette même décomposition par (secteur, position, ANNÉE) sur
+  toutes les années disponibles, en ne sommant, pour une année donnée, que
+  les enfants effectivement publiés cette année-là (la nomenclature peut
+  changer dans le temps) — ce qui retrouve aussi bien `D4 = D41+...` (valide
+  sur les 76 années) que `P7 = P71 + P72` (valide seulement 1949-2023).
 - Ce même poste `F` se déplie aussi par classe d'instrument financier
   (numéraire et dépôts, titres de créance, crédits, actions, ...), à
   n'importe quel niveau d'emboîtement — ex. `F = F1+...+F8`, puis

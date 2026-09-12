@@ -97,10 +97,25 @@ def load_formulas():
     # id_formule est ré-attribué à partir de 1 indépendamment pour chaque
     # bloc de calcul du script R (cur_group_id() par bloc) : il n'est donc
     # PAS unique globalement. On regroupe par (formule, id_formule).
+    #
+    # "Ventilation en sous-catégorie" est filtrée ici : ce bloc de
+    # formules_TEE.csv est calculé par regenerate_formules.py (portage
+    # fidèle du script R) à partir du seul instantané de l'année 2024, donc
+    # rate silencieusement toute décomposition dont les enfants ne sont pas
+    # TOUS publiés précisément cette année-là (ex. P7 = P71+P72, P71/P72
+    # publiés jusqu'en 2023 seulement ; plusieurs sous-postes de S13,
+    # discontinués depuis). Remplacée par load_ss_ventil_formulas
+    # ci-dessous, qui refait la même découverte (même règle de troncature)
+    # mais revalidée par (secteur, position, ANNÉE) sur toutes les années
+    # disponibles plutôt qu'un instantané figé. On garde quand même la
+    # génération de ces lignes dans regenerate_formules.py/formules_TEE.csv
+    # (portage fidèle du script R, indépendant de leur usage ici).
     groups = {}  # "label|id" -> {"label": str, "members": [ {sector,entry,sto,signe} ]}
     with open(f"{DATA_DIR}/formules_TEE.csv", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f, delimiter=",", quotechar='"')
         for row in reader:
+            if row["formule"] == "Ventilation en sous-catégorie":
+                continue
             key = f"{row['formule']}|{row['id_formule']}"
             g = groups.setdefault(key, {"label": row["formule"], "members": []})
             g["members"].append({
@@ -125,8 +140,6 @@ def detect_target(fid, group, labels):
             if m["sector"] == "S1":
                 return m
         return members[0]
-    if label == "Ventilation en sous-catégorie":
-        return min(members, key=lambda m: len(m["sto"]))
     by_sto = {m["sto"]: m for m in members if m["entry"] == "B"}
     for candidate in DEFINITION_TARGET_PRIORITY:
         if candidate in by_sto:
@@ -170,6 +183,109 @@ def load_values(src_csv, needed_keys):
             best_status[k4] = prio
             values.setdefault(sec, {}).setdefault(entry, {}).setdefault(sto, {})[year] = round(float(val), 1)
     return values
+
+
+def load_ss_ventil_formulas(src_csv):
+    # Décomposition en sous-catégorie (ex. D4 = D41+...+D45, puis
+    # D42 = D421+D422), à n'importe quel niveau d'emboîtement de la
+    # nomenclature STO (le "parent" d'un poste est son propre code privé de
+    # son dernier caractère) : généralise
+    # regenerate_formules.py::build_ss_ventil (même principe, mêmes
+    # filtres), mais revalidée par (secteur, position, ANNÉE) sur TOUTES
+    # les années disponibles plutôt qu'un instantané figé à 2024 — celui-ci
+    # ratait silencieusement toute décomposition dont les enfants ne sont
+    # pas TOUS publiés précisément en 2024 (ex. P7 = P71+P72, publiés
+    # jusqu'en 2023 seulement ; plusieurs sous-postes de S13, discontinués
+    # depuis). Voir load_formulas, qui filtre "Ventilation en
+    # sous-catégorie" issue de formules_TEE.csv pour ne pas la doublonner
+    # avec celle-ci.
+    #
+    # Lit le CSV source séparément (comme add_missing_f_instruments) plutôt
+    # que de réutiliser `values` : `values` est restreint aux (secteur,
+    # position, poste) "needed" par une autre formule (needed_keys), ce qui
+    # est justement circulaire ici — un poste manqué par le seul instantané
+    # 2024 n'est "needed" par personne d'autre.
+    status_priority = {"D": 0, "SD": 1, "PROV": 2}
+    best_status = {}  # (sector,entry,sto,year) -> priority déjà retenue
+    raw = {}  # sector -> entry -> sto -> year -> value
+    with open(src_csv, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";", quotechar='"')
+        for row in reader:
+            if row["UNIT_MEASURE"] != "XDC":
+                continue
+            if row["COUNTERPART_AREA"] != "W0":
+                continue
+            if row["CONSOLIDATION"] != "N":
+                continue
+            if row["INSTR_ASSET"] != "_Z":
+                continue
+            if row["TRANSFORMATION"] != "N":
+                continue
+            if row["ACCOUNTING_ENTRY"] not in ("C", "D"):
+                continue
+            sec = row["REF_SECTOR"]
+            if sec not in SECTEURS:
+                continue
+            entry = row["ACCOUNTING_ENTRY"]
+            sto = row["STO"]
+            val = row["OBS_VALUE"]
+            if not val:
+                continue
+            year = row["TIME_PERIOD"]
+            prio = status_priority.get(row["OBS_STATUS_FR"], 9)
+            k4 = (sec, entry, sto, year)
+            cur = best_status.get(k4)
+            if cur is not None and cur <= prio:
+                continue
+            best_status[k4] = prio
+            raw.setdefault(sec, {}).setdefault(entry, {}).setdefault(sto, {})[year] = round(float(val), 1)
+
+    formulas = {}
+    index_extra = {}
+    added_values = {}  # sector -> entry -> sto -> year -> value (postes participant à une identité découverte)
+    for sector in SECTEURS:
+        for entry in ("C", "D"):
+            codes = sorted((raw.get(sector) or {}).get(entry) or {})
+            for parent in codes:
+                children = [c for c in codes if c != parent and c[:-1] == parent]
+                if not children:
+                    continue
+                parent_series = raw[sector][entry][parent]
+                valid_years = []
+                for year, parent_val in parent_series.items():
+                    # l'ensemble des enfants publiés peut changer d'une
+                    # année à l'autre (nomenclature qui évolue, ex. P1 =
+                    # P11+P12+P13+P1M+P1O certaines années, P11+P12+P13
+                    # seulement d'autres) : comme build_ss_ventil (qui ne
+                    # voit qu'un instantané par année), on ne somme que les
+                    # enfants publiés CETTE année-là, pas l'ensemble
+                    # (`children`) vu sur toutes les années confondues —
+                    # sinon une année où un enfant a disparu de la
+                    # nomenclature échouerait à tort.
+                    present_children = [c for c in children if year in raw[sector][entry][c]]
+                    if not present_children:
+                        continue
+                    child_vals = [raw[sector][entry][c][year] for c in present_children]
+                    if abs(parent_val - sum(child_vals)) < 1:
+                        valid_years.append(year)
+                if not valid_years:
+                    continue
+                fid = f"Ventilation en sous-catégorie|{sector}-{entry}-{parent}"
+                member_dicts = [{"sector": sector, "entry": entry, "sto": parent, "signe": 1}]
+                for c in sorted(children):
+                    member_dicts.append({"sector": sector, "entry": entry, "sto": c, "signe": -1})
+                formulas[fid] = {
+                    "label": "Ventilation en sous-catégorie",
+                    "target": member_dicts[0],
+                    "members": member_dicts,
+                    "years": sorted(valid_years),
+                }
+                for m in member_dicts:
+                    idxkey = f"{m['sector']}|{m['entry']}|{m['sto']}"
+                    index_extra.setdefault(idxkey, []).append(fid)
+                    bucket = added_values.setdefault(sector, {}).setdefault(m["entry"], {}).setdefault(m["sto"], {})
+                    bucket.update(raw[sector][entry][m["sto"]])
+    return formulas, index_extra, added_values
 
 
 def load_sut(src_csv=None, counterpart_areas=("W0",)):
@@ -473,17 +589,6 @@ B9FX9_FORMULA = [
 B9F_FORMULA = [
     ("Lien solde des flux financiers/flux d'actifs et passifs financiers", ("B", "B9F"),
         [("D", "F", 1), ("C", "F", -1)]),
-]
-
-# P7 = P71 + P72 (importations de biens et services = importations de biens
-# + importations de services), économie totale (S1), en ressource (C) —
-# vérifié à 100% des années où les 3 séries existent (75/75) : P71/P72 ne
-# sont pas encore publiés pour 2024 (seul P7 y figure), d'où
-# load_generic_formulas plutôt qu'un bloc figé à 2024 comme dans
-# regenerate_formules.py (qui manquerait donc cette identité).
-P7_FORMULA = [
-    ("Décomposition des importations de biens et services (prix d'acquisition)", ("C", "P7"),
-        [("C", "P71", 1), ("C", "P72", 1)]),
 ]
 
 
@@ -1393,13 +1498,25 @@ def main():
     # poste ressource/emploi/solde, mais un écart de mesure.
     needed_keys |= {(sector, "B", "B9F") for sector in SECTEURS}
     needed_keys |= {(sector, "_Z", "B9FX9") for sector in SECTEURS}
-    # et pour P71/P72 (voir P7_FORMULA) : absents de formules_TEE.csv car
-    # non publiés pour 2024 (l'année de référence du script R) — P7 lui,
-    # déjà couvert via LIEN_SUT_FORMULAS ci-dessus.
-    needed_keys |= {(sector, "C", "P71") for sector in SECTEURS}
-    needed_keys |= {(sector, "C", "P72") for sector in SECTEURS}
 
     values = load_values(src_data, needed_keys)
+
+    # décomposition en sous-catégorie (généralise "Ventilation en
+    # sous-catégorie" de formules_TEE.csv, voir load_ss_ventil_formulas) :
+    # avant tout add_missing_* pour ne découvrir que des postes TEE
+    # ordinaires (pas encore les codes F/COICOP/patrimoine/RM_/REG_ ajoutés
+    # plus bas, qui ont chacun déjà leur propre mécanisme de décomposition).
+    ss_ventil_formulas, ss_ventil_index, ss_ventil_values = load_ss_ventil_formulas(src_data)
+    formulas.update(ss_ventil_formulas)
+    for idxkey, ids in ss_ventil_index.items():
+        index.setdefault(idxkey, []).extend(ids)
+    for sec, by_entry in ss_ventil_values.items():
+        for entry, by_sto in by_entry.items():
+            for sto, by_year in by_sto.items():
+                bucket = values.setdefault(sec, {}).setdefault(entry, {}).setdefault(sto, {})
+                for year, v in by_year.items():
+                    if year not in bucket:
+                        bucket[year] = v
 
     # ventilation par activité (SUT) : n'ajoute une identité que pour les
     # (secteur, poste, année) où elle concorde avec la valeur TEE (voir
@@ -1465,7 +1582,7 @@ def main():
     patrimoine_codes = {c for _, _, c in patrimoine_added}
     add_missing_patrimoine_labels(labels["STO"], patrimoine_codes)
     tee_generic_formulas, tee_generic_index = load_generic_formulas(
-        values, B9FX9_FORMULA + B9F_FORMULA + P31_COICOP_TOP_FORMULA + P7_FORMULA)
+        values, B9FX9_FORMULA + B9F_FORMULA + P31_COICOP_TOP_FORMULA)
     formulas.update(tee_generic_formulas)
     for idxkey, ids in tee_generic_index.items():
         index.setdefault(idxkey, []).extend(ids)
@@ -1566,9 +1683,10 @@ def main():
     n_activite = len(activite_formulas)
     n_lien_sut = len(lien_formulas)
     n_lien_sut_activite = len(lien_activite_formulas)
+    n_ss_ventil = len(ss_ventil_formulas)
     print(f"OK — {OUT_PATH} généré : {n_formulas} identités comptables "
-          f"(dont {n_activite} ventilations par activité, {n_lien_sut} identités SUT générales, "
-          f"{n_lien_sut_activite} identités SUT générales par activité), "
+          f"(dont {n_ss_ventil} ventilations en sous-catégorie, {n_activite} ventilations par activité, "
+          f"{n_lien_sut} identités SUT générales, {n_lien_sut_activite} identités SUT générales par activité), "
           f"{n_keys} postes (secteur x poste x position) suivis.")
 
 

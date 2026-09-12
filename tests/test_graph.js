@@ -430,14 +430,17 @@ assert(emptyBar.segments.length === 0 && emptyBar.total === 0, 'stackedBarGeomet
 // 12) P7 = P71 + P72 (importations de biens et services = importations de
 // biens + de services), économie totale, en ressource : absente de
 // formules_TEE.csv (P71/P72 pas encore publiés pour 2024, l'année de
-// référence du script R) — voir scripts/prepare_data.py::P7_FORMULA,
-// revalidée par load_generic_formulas comme B9F/B9FX9. Vérifie que
-// l'identité existe, se résout, et n'est pas marquée vérifiée pour 2024
-// (année où P71/P72 manquent).
+// référence du script R, donc invisible à
+// regenerate_formules.py::build_ss_ventil qui ne voit que cet instantané)
+// — voir scripts/prepare_data.py::load_ss_ventil_formulas, qui généralise
+// cette même décomposition ("Ventilation en sous-catégorie", comme
+// D4 = D41+...+D45) en la revalidant sur toutes les années disponibles.
+// Vérifie que l'identité existe, se résout, et n'est pas marquée vérifiée
+// pour 2024 (année où P71/P72 manquent).
 {
-  const p7Fid = Object.keys(D.formulas).find(fid => D.formulas[fid].label.indexOf('Décomposition des importations') === 0);
-  assert(!!p7Fid, 'une identité "Décomposition des importations..." existe pour P7');
-  if (p7Fid) {
+  const p7Fid = 'Ventilation en sous-catégorie|S1-C-P7';
+  assert(!!D.formulas[p7Fid], 'une identité "Ventilation en sous-catégorie" existe pour P7 (S1-C)');
+  if (D.formulas[p7Fid]) {
     const f = D.formulas[p7Fid];
     assert(f.members.length === 3, `l'identité a 3 membres (P7, P71, P72) (trouvé ${f.members.length})`);
     assert(!f.years.includes('2024'), 'l\'identité n\'est pas valide pour 2024 (P71/P72 pas encore publiés)');
