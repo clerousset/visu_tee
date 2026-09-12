@@ -109,7 +109,13 @@ vérifier la connexion et recharger la page.
   dessus en fait la nouvelle racine de l'exploration (y compris si elle est
   dans un autre secteur, atteint via une ventilation par secteur), et
   abandonne la décomposition en cours pour repartir à zéro depuis cette
-  carte.
+  carte. Un bouton « ◀ Retour » apparaît alors à côté des sélecteurs du
+  haut : il empile chaque poste de départ quitté (par « repartir d'ici »,
+  la recherche, le catalogue de formules, ou le sélecteur « Poste de
+  départ » lui-même) et permet d'y revenir un par un ; il disparaît une
+  fois l'historique vidé. Ne restaure que le poste (pas la décomposition
+  dépliée qui était en cours à cette étape) — comme « repartir d'ici »,
+  c'est un nouveau départ propre.
 - Tant qu'au moins une identité est dépliée (sur la carte de départ ou sur
   une de ses cartes enfants), un panneau latéral à droite affiche un
   histogramme empilé divergent par identité active : chaque membre apporte

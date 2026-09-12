@@ -622,6 +622,14 @@
     // `path` encode la branche complète (voir FormulaGroup/CardNode), ce qui
     // permet de refermer toute une sous-branche d'un coup.
     const [expandedTree, setExpandedTree] = React.useState({});
+    // historique de navigation : pile des racines quittées (pas celles
+    // visitées), pour un bouton "Retour" — chaque nouveau départ (repartir
+    // d'ici, recherche, sélecteur de poste, catalogue de formules) empile
+    // la racine COURANTE avant de changer, "Retour" dépile la dernière et y
+    // revient. Ne mémorise pas les décompositions dépliées (expandedTree)
+    // de l'étape quittée : revenir en arrière retrouve le poste, pas l'état
+    // de dépliage exact (comme "repartir d'ici", qui repart toujours propre).
+    const [history, setHistory] = React.useState([]);
 
     function handleToggle(path, info, formulaId) {
       setExpandedTree(prev => {
@@ -647,15 +655,42 @@
       });
     }
 
+    // change de racine en empilant l'ancienne dans l'historique (sauf si la
+    // nouvelle racine est identique à la courante : ni changement, ni entrée
+    // d'historique) — partagé par "repartir d'ici", la recherche, le
+    // catalogue de formules ET le sélecteur "Poste de départ" manuel, pour
+    // que "Retour" fonctionne après n'importe lequel de ces chemins.
+    function changeRoot(sector, entry, newSto, activity) {
+      const normalizedActivity = activity || undefined;
+      if (sector === rootSector && entry === rootEntry && newSto === sto && normalizedActivity === rootActivity) {
+        return;
+      }
+      setHistory(prev => [...prev, { sector: rootSector, entry: rootEntry, sto, activity: rootActivity }]);
+      setRootSector(sector);
+      setRootEntry(entry);
+      setSto(newSto);
+      setRootActivity(normalizedActivity);
+      setExpandedTree({});
+    }
+
     // "repartir d'ici" (bouton sur chaque carte, y compris la racine elle-
     // même) : la carte cliquée devient la nouvelle racine et toute
     // décomposition en cours est abandonnée, comme un nouveau départ
     function handleSetRoot({ sector, entry, sto: newSto, activity }) {
-      setRootSector(sector);
-      setRootEntry(entry);
-      setSto(newSto);
-      setRootActivity(activity || undefined);
+      changeRoot(sector, entry, newSto, activity);
+    }
+
+    // "Retour" : dépile la dernière racine quittée et y revient (nouveau
+    // départ propre, comme changeRoot) ; sans effet si l'historique est vide
+    function handleGoBack() {
+      if (history.length === 0) return;
+      const last = history[history.length - 1];
+      setRootSector(last.sector);
+      setRootEntry(last.entry);
+      setSto(last.sto);
+      setRootActivity(last.activity || undefined);
       setExpandedTree({});
+      setHistory(prev => prev.slice(0, -1));
     }
 
     const stoOptions = rootStoOptions(rootSector);
@@ -664,6 +699,12 @@
       h('div', { className: 'controls', key: 'controls' }, [
         h(PosteSearch, { key: 'search', onSelect: handleSetRoot }),
         h('div', { className: 'row-controls', key: 'row' }, [
+          history.length > 0
+            ? h('button', {
+              key: 'back', className: 'history-back-btn', onClick: handleGoBack,
+              title: 'Revenir au poste de départ précédent (' + history.length + ')',
+            }, '◀ Retour')
+            : null,
           h('label', { key: 'l1', className: 'inline-label' }, [
             'Poste de départ' + (rootSector !== D.seed.sector ? ' (' + G.sectorLabel(rootSector) + ')' : '') + ' ',
             h('select', {
@@ -671,7 +712,7 @@
               value: rootEntry + '|' + sto,
               onChange: (e) => {
                 const [entry, code] = e.target.value.split('|');
-                setRootEntry(entry); setSto(code); setRootActivity(undefined); setExpandedTree({});
+                changeRoot(rootSector, entry, code, undefined);
               },
             }, stoOptions.map(o => h('option', { key: o.entry + '|' + o.sto, value: o.entry + '|' + o.sto },
               o.sto + ' — ' + lowerFirst(G.stoLabel(o.sto)) + ' (' + lowerFirst(G.entryLabel(o.entry)) + ')'))),

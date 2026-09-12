@@ -144,6 +144,18 @@ header .sub {
   align-items: center;
   gap: 6px;
 }
+.history-back-btn {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.history-back-btn:hover { color: var(--text); border-color: var(--accent); }
 select {
   background: var(--panel-2);
   border: 1px solid var(--border);

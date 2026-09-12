@@ -598,6 +598,110 @@ console.log('\n--- Test du bouton "repartir d\'ici" ---');
   }
 }
 
+// --- Test de l'historique de navigation ("Retour") : "repartir d'ici" (et
+// le sélecteur "Poste de départ" manuel, qui partage le même changeRoot)
+// empilent la racine quittée ; le bouton "Retour" (masqué si l'historique
+// est vide) y revient. Vérifie l'apparition/disparition du bouton et que
+// revenir en arrière restaure bien le poste de départ précédent.
+console.log('\n--- Test de l\'historique de navigation ("Retour") ---');
+{
+  let curHooks = null, curIdx = 0;
+  function statefulUseState(initial) {
+    const hooks = curHooks;
+    const i = curIdx++;
+    if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial;
+    return [hooks[i], (v) => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }];
+  }
+  const sandbox6 = {
+    console,
+    document: makeFakeDom(),
+    React: { createElement: mockCreateElement, useState: statefulUseState },
+    ReactDOM: { createRoot: () => ({ render: (el) => { sandbox6.__rendered = el; } }) },
+  };
+  sandbox6.window = sandbox6;
+  vm.createContext(sandbox6);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'data', 'tee_graph.js'), 'utf8'), sandbox6);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'graph.js'), 'utf8'), sandbox6);
+  vm.runInContext(fs.readFileSync(path.join(SITE, 'app.js'), 'utf8'), sandbox6);
+
+  const hookStores6 = {};
+  function render6(el, pathKey) {
+    if (el === null || el === undefined || typeof el === 'boolean' || typeof el === 'string' || typeof el === 'number') return el;
+    if (Array.isArray(el)) return el.map((e, i) => render6(e, pathKey + '.' + i));
+    if (typeof el !== 'object' || !('type' in el)) return el;
+    const t = el.type;
+    if (typeof t === 'function') {
+      const name = t.displayName || t.name || 'anon';
+      const key = pathKey + '/' + name + (el.props && el.props.key !== undefined ? ':' + el.props.key : '');
+      if (!hookStores6[key]) hookStores6[key] = [];
+      curHooks = hookStores6[key]; curIdx = 0;
+      return { __rendered: render6(t(el.props), key), __el: el };
+    }
+    return { type: t, props: Object.assign({}, el.props, el.props && el.props.children !== undefined ? { children: render6(el.props.children, pathKey + '.c') } : {}) };
+  }
+  function findAll6(node, matchFn, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    if (node.__rendered !== undefined) { findAll6(node.__rendered, matchFn, acc); return acc; }
+    if (Array.isArray(node)) { node.forEach(n => findAll6(n, matchFn, acc)); return acc; }
+    if (matchFn(node)) acc.push(node);
+    if (node.props && node.props.children) findAll6(node.props.children, matchFn, acc);
+    return acc;
+  }
+  function textOf6(n) {
+    if (typeof n === 'string' || typeof n === 'number') return String(n);
+    if (Array.isArray(n)) return n.map(textOf6).join('');
+    if (n && n.__rendered !== undefined) return textOf6(n.__rendered);
+    if (n && n.props && n.props.children !== undefined) return textOf6(n.props.children);
+    return '';
+  }
+  const isPill6 = n => n.type === 'button' && n.props.className && n.props.className.indexOf('pill') === 0;
+  const isRootBtn6 = n => n.type === 'button' && n.props.className === 'card-root-btn';
+  const isBackBtn6 = n => n.type === 'button' && n.props.className === 'history-back-btn';
+  const isSelect6 = n => n.type === 'select';
+  const isInlineLabel6 = n => n.props && n.props.className === 'inline-label';
+
+  let tree6 = render6(sandbox6.__rendered, 'root6');
+  assert(findAll6(tree6, isBackBtn6).length === 0, 'pas de bouton "Retour" au départ (historique vide)');
+
+  // 1er changement de racine : "repartir d'ici" sur une carte enfant (via
+  // "Ventilation en sous-secteur", comme le test précédent)
+  const secPill6 = findAll6(tree6, isPill6).find(b => textOf6(b.props.children).indexOf('Ventilation en sous-secteur') !== -1);
+  assert(!!secPill6, 'la racine propose "Ventilation en sous-secteur" (préparation du test historique)');
+  if (secPill6) {
+    secPill6.props.onClick();
+    tree6 = render6(sandbox6.__rendered, 'root6');
+    const rootBtns6 = findAll6(tree6, isRootBtn6);
+    rootBtns6[1].props.onClick();
+    tree6 = render6(sandbox6.__rendered, 'root6');
+    const posteApresRepartir = textOf6(findAll6(tree6, isInlineLabel6)[0]);
+
+    assert(findAll6(tree6, isBackBtn6).length === 1, 'le bouton "Retour" apparaît après "repartir d\'ici"');
+
+    // clique "Retour" : revient au poste de départ initial (la graine)
+    findAll6(tree6, isBackBtn6)[0].props.onClick();
+    tree6 = render6(sandbox6.__rendered, 'root6');
+    assert(findAll6(tree6, isBackBtn6).length === 0, 'le bouton "Retour" disparaît une fois l\'historique vidé');
+    const posteApresRetour = textOf6(findAll6(tree6, isInlineLabel6)[0]);
+    assert(posteApresRetour.indexOf(D.seed.sto) !== -1,
+      `"Retour" restaure bien le poste de départ initial (trouvé "${posteApresRetour.slice(0, 30)}...")`);
+    assert(posteApresRetour !== posteApresRepartir, 'le libellé du poste de départ a bien changé entre les deux étapes');
+
+    // le sélecteur "Poste de départ" manuel alimente le MÊME historique
+    // (changeRoot partagé) : changer via le <select> doit aussi faire
+    // apparaître "Retour"
+    const posteSelect6 = findAll6(tree6, isSelect6)[0];
+    const otherOption6 = posteSelect6.props.children.find(o => o.props.value !== posteSelect6.props.value);
+    assert(!!otherOption6, 'au moins une autre option existe dans le sélecteur de poste de départ');
+    if (otherOption6) {
+      posteSelect6.props.onChange({ target: { value: otherOption6.props.value } });
+      tree6 = render6(sandbox6.__rendered, 'root6');
+      assert(findAll6(tree6, isBackBtn6).length === 1,
+        'le sélecteur "Poste de départ" manuel alimente aussi l\'historique ("Retour" réapparaît)');
+    }
+  }
+}
+
 // --- Test du sélecteur "Unités" (en niveau / en delta) : simule un clic
 // réel (onChange) pour vérifier que la valeur affichée sur la carte racine
 // change bien vers la variation année sur année, que le badge du poste se
