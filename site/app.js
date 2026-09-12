@@ -72,6 +72,20 @@
   };
   function sectorPhrase(sector) { return SECTOR_PHRASE[sector] || lowerFirst(G.sectorLabel(sector)); }
 
+  // fiche du catalogue de données INSEE (catalogue-donnees.insee.fr) pour
+  // chaque table source possible (voir G.sourceFor / prepare_data.py::
+  // poste_source) : permet d'afficher "Source : ..." comme un lien plutôt
+  // qu'un simple texte. Un identifiant absent de cette table (nouvelle
+  // source ajoutée sans mise à jour ici) affiche toujours le texte, juste
+  // sans lien.
+  const SOURCE_URLS = {
+    DD_CNA_TEE: 'https://catalogue-donnees.insee.fr/fr/catalogue/recherche/DD_CNA_TEE',
+    DD_CNA_SUT: 'https://catalogue-donnees.insee.fr/fr/catalogue/recherche/DD_CNA_SUT',
+    DD_CNA_CONSO_MENAGES_COICOP: 'https://catalogue-donnees.insee.fr/fr/catalogue/recherche/DD_CNA_CONSO_MENAGES_COICOP',
+    DD_CNA_PATRIMOINE: 'https://catalogue-donnees.insee.fr/fr/catalogue/recherche/DD_CNA_PATRIMOINE',
+    DS_COMPTES_REGIONAUX: 'https://catalogue-donnees.insee.fr/fr/catalogue/recherche/DS_COMPTES_REGIONAUX',
+  };
+
   // postes proposés dans le sélecteur de départ : pas seulement les soldes
   // (B), aussi les ressources/emplois (C/D) — groupés par position, dans
   // l'ordre où on les rencontre en lisant un compte (solde, puis ressources,
@@ -222,8 +236,16 @@
         }, '↺'),
       ]),
       sentence,
-      h('div', { className: 'card-source', key: 'source', title: 'Source des données de cette carte' },
-        'Source : ' + G.sourceFor(sector, entry, sto, activity)),
+      (() => {
+        const src = G.sourceFor(sector, entry, sto, activity);
+        const url = SOURCE_URLS[src];
+        return h('div', { className: 'card-source', key: 'source', title: 'Source des données de cette carte' }, [
+          'Source : ',
+          url
+            ? h('a', { key: 'link', href: url, target: '_blank', rel: 'noopener noreferrer' }, src)
+            : src,
+        ]);
+      })(),
     ];
     if (effectiveSign !== undefined) {
       children.push(

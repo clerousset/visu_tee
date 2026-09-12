@@ -455,6 +455,12 @@ main {
   color: var(--text-dim);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+.card-source a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+}
+.card-source a:hover { color: var(--accent-2); text-decoration-color: var(--accent-2); }
 .card-value {
   font-weight: 700;
   font-variant-numeric: tabular-nums;

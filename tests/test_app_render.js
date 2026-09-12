@@ -433,6 +433,15 @@ console.log('\n--- Test de la ventilation par activité (SUT) ---');
   assert(!!rootSource4 && textOf4(rootSource4.props.children).indexOf('DD_CNA_TEE') !== -1,
     `la carte D1/S1 (poste TEE ordinaire) affiche "Source : DD_CNA_TEE" (trouvé "${textOf4(rootSource4)}")`);
 
+  // la source est un vrai lien vers la fiche du catalogue de données INSEE,
+  // pas juste du texte
+  const rootSourceLink4 = findAll4(rootSource4, n => n.type === 'a')[0];
+  assert(!!rootSourceLink4, 'la source de la carte D1/S1 est un lien cliquable');
+  assert(!!rootSourceLink4 && rootSourceLink4.props.href === 'https://catalogue-donnees.insee.fr/fr/catalogue/recherche/DD_CNA_TEE',
+    `le lien pointe vers la fiche DD_CNA_TEE du catalogue INSEE (trouvé "${rootSourceLink4 && rootSourceLink4.props.href}")`);
+  assert(!!rootSourceLink4 && rootSourceLink4.props.target === '_blank',
+    'le lien de la source s\'ouvre dans un nouvel onglet');
+
   let btns = findAll4(tree4, isButton4);
   const activiteBtns = btns.filter(b => textOf4(b.props.children).indexOf('Ventilation en activité') !== -1);
   assert(activiteBtns.length === 1,
@@ -487,6 +496,9 @@ console.log('\n--- Test de la ventilation par activité (SUT) ---');
     const sourceA = cardNodesA && findAll4(cardNodesA, n => n.props && n.props.className === 'card-source')[0];
     assert(!!sourceA && textOf4(sourceA.props.children).indexOf('DD_CNA_SUT') !== -1,
       `la carte d'une valeur ventilée par activité affiche "Source : DD_CNA_SUT" (trouvé "${textOf4(sourceA)}")`);
+    const sourceALink = sourceA && findAll4(sourceA, n => n.type === 'a')[0];
+    assert(!!sourceALink && sourceALink.props.href === 'https://catalogue-donnees.insee.fr/fr/catalogue/recherche/DD_CNA_SUT',
+      `le lien de cette source pointe vers la fiche DD_CNA_SUT du catalogue INSEE (trouvé "${sourceALink && sourceALink.props.href}")`);
 
     const expected = G4.getValue('S1', 'D', 'D1', '2022', 'A');
     assert(expected !== null, 'G.getValue avec activity renvoie une valeur pour D1/S1/2022/A');

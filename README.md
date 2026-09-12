@@ -59,7 +59,11 @@ vérifier la connexion et recharger la page.
   quelques-uns qui n'existent que dans le SUT (`TSPP`, `TSBP`) et toute
   valeur ventilée par activité (toujours du SUT). D'autres sources
   s'ajouteront ici au fil des besoins (voir `graph.js::sourceFor`,
-  `payload.posteSource`).
+  `payload.posteSource`). Ce libellé est un lien vers la fiche
+  correspondante du catalogue de données de l'INSEE
+  (`catalogue-donnees.insee.fr`, table `app.js::SOURCE_URLS`) ; une source
+  ajoutée sans entrée dans cette table reste affichée en texte simple, sans
+  lien.
 - Un sélecteur « Unités » en haut de page propose trois modes :
   - « En niveau » (par défaut) : comportement historique.
   - « En delta (variation annuelle) » : chaque carte, équation et le
